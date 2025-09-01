@@ -1,12 +1,29 @@
-import { Controller, Get } from '@nestjs/common';
-import { AppService } from './app.service';
+import { Controller, Get, Req } from '@nestjs/common';
+import type { Request } from 'express';
+import { getSystemInfoJson } from './utils/system-info';
 
 @Controller()
 export class AppController {
-  constructor(private readonly appService: AppService) {}
+  constructor() { }
 
   @Get()
-  getHello(): string {
-    return this.appService.getHello();
+  getHello(@Req() req: Request) {
+    return {
+      success: true,
+      message: 'Server is running',
+      data: {
+        api_docs: req.protocol + '://' + req.get('host') + '/v1/api/docs',
+        health: req.protocol + '://' + req.get('host') + '/v1/api/health',
+      },
+    };
+  }
+
+  @Get('health')
+  getHealth() {
+    return {
+      success: true,
+      message: 'Health check passed',
+      data: getSystemInfoJson,
+    };
   }
 }
