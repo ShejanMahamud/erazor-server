@@ -3,48 +3,49 @@ import {
   ArcjetModule,
   detectBot,
   fixedWindow,
-  shield,
+  shield
 } from '@arcjet/nest';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
+import { BillingModule } from './billing/billing.module';
+import { ClerkModule } from './clerk/clerk.module';
+import { ImagesModule } from './images/images.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
     PrismaModule,
+    ClerkModule,
     ConfigModule.forRoot({ isGlobal: true }),
     ArcjetModule.forRoot({
       isGlobal: true,
       key: process.env.ARCJET_KEY!,
       rules: [
-        // Shield protects your app from common attacks e.g. SQL injection
         shield({ mode: 'LIVE' }),
-        // Create a bot detection rule
         detectBot({
-          mode: 'LIVE', // Blocks requests. Use "DRY_RUN" to log only
-          // Block all bots except the following
+          mode: 'LIVE',
           allow: [
-            'CATEGORY:SEARCH_ENGINE', // Google, Bing, etc
-            // Uncomment to allow these other common bot categories
-            // See the full list at https://arcjet.com/bot-list
-            //"CATEGORY:MONITOR", // Uptime monitoring services
-            //"CATEGORY:PREVIEW", // Link previews e.g. Slack, Discord
+            'CATEGORY:SEARCH_ENGINE',
           ],
         }),
-        // Create a fixed window rate limit. Other algorithms are supported.
         fixedWindow({
           mode: 'LIVE',
-          window: '60s', // 10 second fixed window
-          max: 2, // Allow a maximum of 2 requests
+          window: '60s',
+          max: 100,
         }),
       ],
     }),
+    BillingModule,
+    ImagesModule,
+    UsersModule,
   ],
   controllers: [AppController],
   providers: [
     {
-      provide: 'APP_GUARD',
+      provide: APP_GUARD,
       useClass: ArcjetGuard,
     },
   ],
