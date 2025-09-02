@@ -1,10 +1,12 @@
-import { Controller, Get, Req } from '@nestjs/common';
+
+import type { ClerkClient } from '@clerk/backend';
+import { Controller, Get, Inject, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { getSystemInfoJson } from './utils/system-info';
 
 @Controller()
 export class AppController {
-  constructor() { }
+  constructor(@Inject('CLERK_CLIENT') private readonly clerkClient: ClerkClient) { }
 
   @Get()
   getHello(@Req() req: Request) {
@@ -23,7 +25,9 @@ export class AppController {
     return {
       success: true,
       message: 'Health check passed',
-      data: getSystemInfoJson,
+      data: getSystemInfoJson(),
     };
   }
+
+
 }

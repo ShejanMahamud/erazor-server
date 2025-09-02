@@ -7,3 +7,97 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+model User {
+  id           String         @id @default(uuid())
+  clerkId      String         @unique
+  email        String         @unique
+  username     String         @unique
+  firstName    String
+  lastName     String
+  imageUrl     String
+  verified     VerificationStatus        @default(unverified)
+  isDeleted    Boolean        @default(false)
+  isBlocked    Boolean        @default(false)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  LoginHistory LoginHistory[]
+  UserRole     UserRole[]
+
+  @@index([email])
+  @@index([username])
+  @@index([clerkId])
+  @@unique([email, clerkId, username])
+  @@map("users")
+}
+
+model LoginHistory {
+  id            String   @id @default(uuid())
+  userId        String
+  ipAddress     String
+  userAgent     String
+  sessionId     String
+  failedAttempt Int      @default(0)
+  lastSignInAt  DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([ipAddress])
+  @@index([userAgent])
+  @@index([sessionId])
+  @@index([lastSignInAt])
+  @@map("login_history")
+}
+
+model UserRole {
+  id        String   @id @default(uuid())
+  userId    String
+  role      Roles
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  status    Boolean  @default(true)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, role])
+  @@index([userId])
+  @@index([role])
+  @@map("user_roles")
+}
+
+enum Roles {
+  MODERATOR
+  ADMIN
+  USER
+}
+
+enum Permissions {
+  // Admin Permissions
+  MANAGE_USERS
+  VIEW_ANALYTICS
+  MANAGE_SUBSCRIPTIONS
+  MANAGE_ROLES
+  DELETE_IMAGES
+  SYSTEM_SETTINGS
+
+  // Moderator Permissions
+  REVIEW_IMAGES
+  BLOCK_USER
+  REMOVE_CONTENT
+  VIEW_USER_ACTIVITY
+
+  // Common Permissions (Optional)
+  PROCESS_IMAGES
+  VIEW_OWN_HISTORY
+}
+
+enum VerificationStatus {
+  transferable
+  verified
+  unverified
+  expired
+  failed
+}
