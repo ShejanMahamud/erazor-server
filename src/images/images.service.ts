@@ -1,26 +1,33 @@
+import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
-import { CreateImageDto } from './dto/create-image.dto';
-import { UpdateImageDto } from './dto/update-image.dto';
+import { Queue } from 'bullmq';
+import { IGlobalRes } from 'src/types';
+import { IImageService } from './interfaces/images.interface';
 
 @Injectable()
-export class ImagesService {
-  create(createImageDto: CreateImageDto) {
-    return 'This action adds a new image';
-  }
+export class ImagesService implements IImageService {
 
-  findAll() {
-    return `This action returns all images`;
-  }
+  constructor(@InjectQueue('image-processor') private readonly imageProcessorQueue: Queue) { }
 
-  findOne(id: number) {
-    return `This action returns a #${id} image`;
-  }
+  async processImage(clerkId: string, file: Express.Multer.File): Promise<IGlobalRes<null>> {
 
-  update(id: number, updateImageDto: UpdateImageDto) {
-    return `This action updates a #${id} image`;
-  }
+    // Extract only serializable properties from the file object
+    const serializableFile = {
+      originalname: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size,
+      buffer: file.buffer.toString('base64'), // Convert buffer to base64 string
+      filename: file.filename
+    };
 
-  remove(id: number) {
-    return `This action removes a #${id} image`;
+    await this.imageProcessorQueue.add('process-image', {
+      clerkId,
+      file: serializableFile
+    });
+
+    return {
+      success: true,
+      message: "Image processing started"
+    }
   }
 }

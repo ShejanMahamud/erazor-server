@@ -1,9 +1,13 @@
 import { Module } from '@nestjs/common';
-import { ImagesService } from './images.service';
+import { QueueModule } from 'src/queue/queue.module';
+import { ImageGateway } from './image.gateway';
 import { ImagesController } from './images.controller';
+import { ImagesService } from './images.service';
+import { ImageProcessor } from './processors/image.processor';
 
 @Module({
+  imports: [QueueModule],
   controllers: [ImagesController],
-  providers: [ImagesService],
+  providers: [ImagesService, ImageGateway, ImageProcessor],
 })
-export class ImagesModule {}
+export class ImagesModule { }

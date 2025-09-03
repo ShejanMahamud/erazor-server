@@ -1,5 +1,4 @@
 import {
-  ArcjetGuard,
   ArcjetModule,
   detectBot,
   fixedWindow,
@@ -7,12 +6,13 @@ import {
 } from '@arcjet/nest';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { BillingModule } from './billing/billing.module';
+import { PolarModule } from './billing/polar.module';
 import { ClerkModule } from './clerk/clerk.module';
 import { ImagesModule } from './images/images.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { QueueModule } from './queue/queue.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -27,8 +27,10 @@ import { UsersModule } from './users/users.module';
         shield({ mode: 'LIVE' }),
         detectBot({
           mode: 'LIVE',
+          //allow postman
           allow: [
             'CATEGORY:SEARCH_ENGINE',
+            'CATEGORY:MONITOR'
           ],
         }),
         fixedWindow({
@@ -41,13 +43,15 @@ import { UsersModule } from './users/users.module';
     BillingModule,
     ImagesModule,
     UsersModule,
+    PolarModule,
+    QueueModule
   ],
   controllers: [AppController],
   providers: [
-    {
-      provide: APP_GUARD,
-      useClass: ArcjetGuard,
-    },
+    // {
+    //   provide: APP_GUARD,
+    //   useClass: ArcjetGuard,
+    // },
   ],
 })
 export class AppModule { }

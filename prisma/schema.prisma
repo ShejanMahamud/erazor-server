@@ -68,6 +68,27 @@ model UserRole {
   @@map("user_roles")
 }
 
+model Image {
+  id String @id @default(uuid())
+  userId String
+  clerkId String
+  processId String @unique
+  originalFileName String
+  originalImageUrlLQ String?
+  originalImageUrlHQ String?
+  bgRemovedFileName String?
+  bgRemovedImageUrlLQ String?
+  bgRemovedImageUrlHQ String?
+  status ImageStatus @default(queue)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([processId])
+  @@index([status])
+  @@map("images")
+}
+
 enum Roles {
   MODERATOR
   ADMIN
@@ -100,4 +121,10 @@ enum VerificationStatus {
   unverified
   expired
   failed
+}
+
+enum ImageStatus {
+  queue
+  processing
+  ready
 }
