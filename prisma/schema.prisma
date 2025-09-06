@@ -9,84 +9,71 @@ datasource db {
 }
 
 model User {
-  id           String         @id @default(uuid())
-  clerkId      String         @unique
-  email        String         @unique
-  username     String         @unique
+  id           String             @id @unique @map("userId")
+  email        String             @unique
+  username     String             @unique
   firstName    String
   lastName     String
   imageUrl     String
-  verified     VerificationStatus        @default(unverified)
-  isDeleted    Boolean        @default(false)
-  isBlocked    Boolean        @default(false)
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-  LoginHistory LoginHistory[]
-  UserRole     UserRole[]
-
+  role      Roles              @default(USER)
+  verified     VerificationStatus @default(unverified)
+  isDeleted    Boolean            @default(false)
+  isBlocked    Boolean            @default(false)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  Notification Notification[]
+  Images       Image[]
   @@index([email])
   @@index([username])
-  @@index([clerkId])
-  @@unique([email, clerkId, username])
+  @@index([id])
+
+  @@unique([email, username, id])
   @@map("users")
 }
 
-model LoginHistory {
-  id            String   @id @default(uuid())
-  userId        String
-  ipAddress     String
-  userAgent     String
-  sessionId     String
-  failedAttempt Int      @default(0)
-  lastSignInAt  DateTime
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([ipAddress])
-  @@index([userAgent])
-  @@index([sessionId])
-  @@index([lastSignInAt])
-  @@map("login_history")
-}
-
-model UserRole {
-  id        String   @id @default(uuid())
-  userId    String
-  role      Roles
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  status    Boolean  @default(true)
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, role])
-  @@index([userId])
-  @@index([role])
-  @@map("user_roles")
-}
-
 model Image {
-  id String @id @default(uuid())
-  userId String
-  clerkId String
-  processId String @unique
-  originalFileName String
-  originalImageUrlLQ String?
-  originalImageUrlHQ String?
-  bgRemovedFileName String?
+  id                  String      @id @default(uuid())
+  userId              String
+  processId           String      @unique
+  originalFileName    String
+  originalImageUrlLQ  String?
+  originalImageUrlHQ  String?
+  bgRemovedFileName   String?
   bgRemovedImageUrlLQ String?
   bgRemovedImageUrlHQ String?
-  status ImageStatus @default(queue)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  status              ImageStatus @default(queue)
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([processId])
   @@index([status])
   @@map("images")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  type      String
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([isRead])
+  @@map("notifications")
+}
+
+enum NotificationType {
+  INFO
+  WARNING
+  ALERT
 }
 
 enum Roles {

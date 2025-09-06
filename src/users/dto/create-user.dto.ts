@@ -4,7 +4,7 @@ import { VerificationStatus } from 'generated/prisma';
 export class CreateUserDto {
     @IsString()
     @IsNotEmpty()
-    clerkId: string;
+    id: string;
 
     @IsEmail()
     @IsNotEmpty()

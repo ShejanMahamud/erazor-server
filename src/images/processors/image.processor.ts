@@ -1,5 +1,7 @@
 import { InjectQueue, Processor, WorkerHost } from "@nestjs/bullmq";
+import { Inject } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { Polar } from "@polar-sh/sdk";
 import axios from "axios";
 import { Job } from "bullmq";
 import { PrismaService } from "src/prisma/prisma.service";
@@ -8,12 +10,12 @@ import FormData = require("form-data");
 type PollImagePayload = { processId: string };
 @Processor('image-processor')
 export class ImageProcessor extends WorkerHost {
-    constructor(private readonly config: ConfigService, private readonly prisma: PrismaService, @InjectQueue('image-processor') private readonly imageProcessorQueue, private readonly imageGateway: ImageGateway) {
+    constructor(private readonly config: ConfigService, private readonly prisma: PrismaService, @InjectQueue('image-processor') private readonly imageProcessorQueue, private readonly imageGateway: ImageGateway, @Inject('POLAR_CLIENT') private readonly polarClient: Polar) {
         super();
     }
 
     async process(job: Job<{
-        clerkId: string;
+        userId: string;
         file: {
             originalname: string;
             mimetype: string;
@@ -33,10 +35,10 @@ export class ImageProcessor extends WorkerHost {
         }
     }
 
-    async findUserByClerkId(clerkId: string): Promise<any> {
+    async findUserById(userId: string): Promise<any> {
         return this.prisma.user.findUnique({
             where: {
-                clerkId
+                id: userId
             }
         });
     }
@@ -83,7 +85,7 @@ export class ImageProcessor extends WorkerHost {
     }
 
     async handleImageCreateOnDB(job: Job<{
-        clerkId: string;
+        userId: string;
         file: {
             originalname: string;
             mimetype: string;
@@ -93,11 +95,10 @@ export class ImageProcessor extends WorkerHost {
         };
     }>): Promise<void> {
         const data = await this.handleImageProcessing(job);
-        const user = await this.findUserByClerkId(job.data.clerkId);
+        const user = await this.findUserById(job.data.userId);
         await this.prisma.image.create({
             data: {
-                clerkId: job.data.clerkId,
-                userId: user.id,
+                userId: job.data.userId,
                 processId: data.id,
                 originalFileName: job.data.file.originalname,
                 status: data.statusName,
@@ -133,8 +134,18 @@ export class ImageProcessor extends WorkerHost {
                     bgRemovedImageUrlLQ: result.data.processed?.thumb2x_url || null,
                 },
             });
-
-            this.imageGateway.sendImageUpdate(updatedImage.clerkId, updatedImage);
+            await this.polarClient.events.ingest({
+                events: [{
+                    name: "bg_remove",
+                    externalCustomerId: image.userId,
+                    metadata: {
+                        operations: 1,
+                        image_id: updatedImage.processId,
+                        timestamp: new Date().toISOString()
+                    }
+                }]
+            });
+            this.imageGateway.sendImageUpdate(updatedImage.userId, updatedImage);
         } else if (
             result.data.statusName === 'processing' ||
             result.data.statusName === 'queue'

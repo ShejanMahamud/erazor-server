@@ -7,7 +7,7 @@ CREATE TYPE "public"."Permissions" AS ENUM ('MANAGE_USERS', 'VIEW_ANALYTICS', 'M
 -- CreateTable
 CREATE TABLE "public"."users" (
     "id" TEXT NOT NULL,
-    "clerkId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "username" TEXT NOT NULL,
     "firstName" TEXT NOT NULL,
@@ -50,7 +50,7 @@ CREATE TABLE "public"."user_roles" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "users_clerkId_key" ON "public"."users"("clerkId");
+CREATE UNIQUE INDEX "users_userId_key" ON "public"."users"("userId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "users_email_key" ON "public"."users"("email");
@@ -65,7 +65,7 @@ CREATE INDEX "users_email_idx" ON "public"."users"("email");
 CREATE INDEX "users_username_idx" ON "public"."users"("username");
 
 -- CreateIndex
-CREATE INDEX "users_clerkId_idx" ON "public"."users"("clerkId");
+CREATE INDEX "users_userId_idx" ON "public"."users"("userId");
 
 -- CreateIndex
 CREATE INDEX "login_history_userId_idx" ON "public"."login_history"("userId");
