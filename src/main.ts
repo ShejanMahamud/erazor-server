@@ -4,6 +4,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { LoggerInterceptor } from './logger/logger.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -25,7 +26,8 @@ async function bootstrap() {
   );
   app.use(helmet());
   app.setGlobalPrefix('v1/api');
-
+  const loggingInterceptor = app.get(LoggerInterceptor);
+  app.useGlobalInterceptors(loggingInterceptor);
   const requiredEnvVars = [
     'DATABASE_URL',
     'CORS_ORIGIN',

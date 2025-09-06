@@ -12,12 +12,11 @@ export class PermissionsGuard implements CanActivate {
 
         const req = context.switchToHttp().getRequest();
         const user = req.user;
-        const hasPermission = ROLE_PERMISSIONS[user.role].includes(requiredPermissions);
 
+        const hasPermission = ROLE_PERMISSIONS[user.metadata.role].includes(...requiredPermissions);
         if (!user || !hasPermission) {
             throw new ForbiddenException('Insufficient permissions');
         }
-
         return true;
     }
 }

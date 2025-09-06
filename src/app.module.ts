@@ -1,5 +1,4 @@
 import {
-  ArcjetGuard,
   ArcjetModule,
   detectBot,
   fixedWindow,
@@ -7,16 +6,20 @@ import {
 } from '@arcjet/nest';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { BillingModule } from './billing/billing.module';
+import { PolarModule } from './billing/polar.module';
 import { ClerkModule } from './clerk/clerk.module';
 import { ImagesModule } from './images/images.module';
+import { LoggerModule } from './logger/logger.module';
+import { NotificationModule } from './notification/notification.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { QueueModule } from './queue/queue.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
+    LoggerModule,
     PrismaModule,
     ClerkModule,
     ConfigModule.forRoot({ isGlobal: true }),
@@ -24,30 +27,45 @@ import { UsersModule } from './users/users.module';
       isGlobal: true,
       key: process.env.ARCJET_KEY!,
       rules: [
-        shield({ mode: 'LIVE' }),
+        shield({
+          mode: process.env.NODE_ENV === 'production' ? 'LIVE' : 'DRY_RUN',
+        }),
+
         detectBot({
-          mode: 'LIVE',
+          mode: process.env.NODE_ENV === 'production' ? 'LIVE' : 'DRY_RUN',
           allow: [
             'CATEGORY:SEARCH_ENGINE',
+            'CATEGORY:MONITOR',
           ],
         }),
+
         fixedWindow({
           mode: 'LIVE',
           window: '60s',
-          max: 100,
+          max: 60,
+        }),
+        fixedWindow({
+          mode: 'LIVE',
+          window: '30d',
+          max: 10,
+          characteristics: ['/images/remove-bg'],
         }),
       ],
-    }),
+    })
+    ,
     BillingModule,
     ImagesModule,
     UsersModule,
+    PolarModule,
+    QueueModule,
+    NotificationModule
   ],
   controllers: [AppController],
   providers: [
-    {
-      provide: APP_GUARD,
-      useClass: ArcjetGuard,
-    },
+    // {
+    //   provide: APP_GUARD,
+    //   useClass: ArcjetGuard,
+    // },
   ],
 })
 export class AppModule { }

@@ -27,11 +27,9 @@ export class ClerkGuard implements CanActivate {
             method: req.method,
             headers: req.headers,
         };
-
         const { token } = await this.clerkClient.authenticateRequest(
             clerkRequest as any,
         );
-
         if (!token) {
             return false;
         }
@@ -39,7 +37,7 @@ export class ClerkGuard implements CanActivate {
             secretKey: process.env.CLERK_SECRET_KEY,
         });
         const user = await this.clerkClient.users.getUser(payload.sub);
-        req['user'] = { ...payload, role: user.publicMetadata.role };
+        req['user'] = { ...payload };
         req['token'] = token;
         return true;
     }
