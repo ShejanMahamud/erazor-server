@@ -145,7 +145,7 @@ export class BillingService implements IBillingService {
       const usage = {
         subscriptions: customerState.activeSubscriptions || [],
         externalId: userId,
-        // Add more usage metrics as available in the Polar SDK CustomerState type
+        activeMeter: customerState.activeMeters
       };
 
       return {
@@ -154,11 +154,7 @@ export class BillingService implements IBillingService {
         data: usage
       };
     } catch (error) {
-      return {
-        success: false,
-        message: "Failed to fetch user usage",
-        data: null
-      };
+      throw new BadRequestException('Failed to fetch user usage');
     }
   }
 

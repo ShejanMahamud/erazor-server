@@ -4,15 +4,17 @@ import { ImageStatus, Permissions, Roles } from 'generated/prisma';
 import { PermissionsRequired } from 'src/decorators/permissions.decorator';
 import { RolesRequired } from 'src/decorators/roles.decorator';
 import { ClerkGuard } from 'src/guards/clerk-guard';
+import { HasCreditGuard } from 'src/guards/has-credit.guard';
 import { PermissionsGuard } from 'src/guards/permissions.guard';
 import { RolesGuard } from 'src/guards/roles.guard';
+import { ActiveSubscriptionGuard } from 'src/guards/subscription-status.guard';
 import { ImagesService } from './images.service';
 
 @Controller('images')
 export class ImagesController {
   constructor(private readonly imagesService: ImagesService) { }
 
-  @UseGuards(ClerkGuard)
+  @UseGuards(ClerkGuard, ActiveSubscriptionGuard, HasCreditGuard)
   @Post('process')
   @UseInterceptors(FileInterceptor('file', {
     limits: {

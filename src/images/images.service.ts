@@ -2,6 +2,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Queue } from 'bullmq';
 import { ImageStatus } from 'generated/prisma';
+import { BillingService } from 'src/billing/billing.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { IGlobalRes } from 'src/types';
 import { IImage, IImageService } from './interfaces/images.interface';
@@ -9,7 +10,7 @@ import { IImage, IImageService } from './interfaces/images.interface';
 @Injectable()
 export class ImagesService implements IImageService {
   private readonly logger = new Logger(ImagesService.name);
-  constructor(@InjectQueue('image-processor') private readonly imageProcessorQueue: Queue, private readonly prisma: PrismaService) { }
+  constructor(@InjectQueue('image-processor') private readonly imageProcessorQueue: Queue, private readonly prisma: PrismaService, private readonly billing: BillingService) { }
 
   async processImage(userId: string, file: Express.Multer.File): Promise<IGlobalRes<null>> {
     this.logger.log(`Processing image for user ${userId}`);
