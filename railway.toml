@@ -1,16 +1,9 @@
-version: 2
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
 
-services:
-  app:
-    build:
-      dockerfile: Dockerfile
-    environment:
-      - NODE_ENV=production
-    healthcheck:
-      command: "curl -f http://localhost:4545/v1.api/health || exit 1"
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    deploy:
-      replicas: 1
-      restart_policy: unless-stopped
+[deploy]
+startCommand = "pnpm railway:start"
+healthcheckPath = "/v1.api/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
