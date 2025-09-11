@@ -28,8 +28,8 @@ FROM node:18-alpine AS production
 # Set working directory
 WORKDIR /app
 
-# Install pnpm
-RUN npm install -g pnpm
+# Install pnpm and PM2
+RUN npm install -g pnpm pm2
 
 # Copy package files
 COPY package.json pnpm-lock.yaml ./
@@ -42,8 +42,14 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/generated ./generated
 COPY --from=builder /app/prisma ./prisma
 
-# Expose port (Railway will inject PORT environment variable)
-EXPOSE 3000
+# Copy PM2 ecosystem config
+COPY ecosystem.config.js ./
 
-# Start the application
-CMD ["pnpm", "start:prod"]
+# Create logs directory
+RUN mkdir -p logs
+
+# Expose port (Railway will inject PORT environment variable)
+EXPOSE 4545
+
+# Start the application with PM2
+CMD ["pm2-runtime", "start", "ecosystem.config.js"]
