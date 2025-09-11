@@ -1,6 +1,5 @@
 import { Body, Controller, DefaultValuePipe, Delete, Get, Param, ParseIntPipe, Post, Query, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { rembg } from '@remove-background-ai/rembg.js';
 import { ImageStatus, Permissions, Roles } from 'generated/prisma';
 import { PermissionsRequired } from 'src/decorators/permissions.decorator';
 import { RolesRequired } from 'src/decorators/roles.decorator';
@@ -50,26 +49,4 @@ export class ImagesController {
     return this.imagesService.deleteImage(id);
   }
 
-  @Post('process/free')
-  @UseInterceptors(FileInterceptor('file', {
-    limits: {
-      fileSize: 5 * 1024 * 1024,
-    }
-  }))
-  async processImageFree(@UploadedFile() file: Express.Multer.File) {
-    const onDownloadProgress = console.log;
-    const onUploadProgress = console.log;
-    const result = await rembg({
-      apiKey: process.env.IMAGE_PROCESSOR_FREE_API_KEY!,
-      inputImage: file.buffer,
-      onDownloadProgress,
-      onUploadProgress,
-      options: {
-        returnBase64: true,
-        w: 1024,
-        h: 1024,
-      }
-    })
-    return result.base64Image
-  }
 }

@@ -95,7 +95,6 @@ export class ImageProcessor extends WorkerHost {
             filename?: string;
         };
     }>): Promise<void> {
-        console.log(`Starting image processing`, job);
         const data = await this.handleImageProcessing(job);
         await this.prisma.image.create({
             data: {
@@ -140,7 +139,6 @@ export class ImageProcessor extends WorkerHost {
                     bgRemovedImageUrlLQ: result.data.processed?.thumb2x_url || null,
                 },
             });
-            console.log(result.data);
             await this.polarClient.events.ingest({
                 events: [{
                     name: "bg_remove",
@@ -152,7 +150,6 @@ export class ImageProcessor extends WorkerHost {
                     }
                 }]
             });
-            console.log(`Image ${image.id} processed successfully.`);
             await this.notificationGateway.sendNotification({
                 userId: image.userId,
                 type: 'INFO',

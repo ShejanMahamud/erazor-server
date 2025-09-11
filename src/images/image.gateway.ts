@@ -1,12 +1,14 @@
+import { Logger } from "@nestjs/common";
 import { ConnectedSocket, MessageBody, OnGatewayInit, SubscribeMessage, WebSocketGateway, WebSocketServer } from "@nestjs/websockets";
 import { Server, Socket } from 'socket.io';
 
 @WebSocketGateway({ namespace: 'images', cors: true })
 export class ImageGateway implements OnGatewayInit {
+    private readonly logger = new Logger('ImageGateway');
     @WebSocketServer() server: Server;
 
     afterInit(server: Server) {
-        console.log('Images WebSocket server initialized');
+        this.logger.log('ImageGateway initialized');
     }
 
     @SubscribeMessage('join')

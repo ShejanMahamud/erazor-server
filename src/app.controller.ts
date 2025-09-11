@@ -1,6 +1,7 @@
 
 import type { ClerkClient } from '@clerk/backend';
 import { Controller, Get, Inject, Req } from '@nestjs/common';
+import * as Sentry from "@sentry/nestjs";
 import type { Request } from 'express';
 import { getSystemInfoJson } from './utils/system-info';
 
@@ -28,6 +29,13 @@ export class AppController {
       data: getSystemInfoJson(),
     };
   }
-
+  @Get("/debug-sentry")
+  getError() {
+    // Send a log before throwing the error
+    Sentry.logger.info('User triggered test error', {
+      action: 'test_error_endpoint',
+    });
+    throw new Error("My first Sentry error!");
+  }
 
 }

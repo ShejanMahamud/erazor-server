@@ -1,3 +1,4 @@
+import type { Request } from 'express';
 import { IGlobalRes } from "src/types";
 
 export interface IBillingService {
@@ -24,7 +25,7 @@ export interface IBillingService {
     getInvoiceById(invoiceId: string): Promise<IGlobalRes<any>>;
 
     // Webhooks & Events
-    handleWebhookEvent(eventType: string, eventData: any): Promise<IGlobalRes<any>>;
+    handleWebhookEvent(eventType: string, eventData: any, req: Request): Promise<IGlobalRes<any>>;
 
     // Analytics
     getRevenueAnalytics(startDate?: Date, endDate?: Date): Promise<IGlobalRes<any>>;

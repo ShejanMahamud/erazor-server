@@ -53,6 +53,17 @@ model Image {
   @@map("images")
 }
 
+model System {
+  id        Int      @id @default(1)
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
+  @@map("system")
+}
+
 model Notification {
   id        String            @id @default(uuid())
   userId    String

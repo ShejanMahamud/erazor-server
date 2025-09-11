@@ -4,6 +4,8 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { AllExceptionsFilter } from './common/all-exception.filter';
+import "./instrument";
 import { LoggerInterceptor } from './logger/logger.interceptor';
 
 async function bootstrap() {
@@ -24,6 +26,7 @@ async function bootstrap() {
       },
     }),
   );
+  app.useGlobalFilters(new AllExceptionsFilter());
   app.use(helmet());
   app.setGlobalPrefix('v1/api');
   const loggingInterceptor = app.get(LoggerInterceptor);

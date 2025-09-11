@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import type { Request } from 'express';
 import { Permissions, Roles } from 'generated/prisma';
 import { PermissionsRequired } from 'src/decorators/permissions.decorator';
 import { RolesRequired } from 'src/decorators/roles.decorator';
@@ -6,6 +7,7 @@ import { ClerkGuard } from 'src/guards/clerk-guard';
 import { PermissionsGuard } from 'src/guards/permissions.guard';
 import { RolesGuard } from 'src/guards/roles.guard';
 import { BillingService } from './billing.service';
+
 
 @Controller('billing')
 export class BillingController {
@@ -117,8 +119,8 @@ export class BillingController {
 
   // Webhook endpoint (no auth needed for webhooks)
   @Post('webhook')
-  handleWebhook(@Body() webhookData: any) {
+  handleWebhook(@Body() webhookData: any, req: Request) {
     const eventType = webhookData.type || webhookData.event_type;
-    return this.billingService.handleWebhookEvent(eventType, webhookData);
+    return this.billingService.handleWebhookEvent(eventType, webhookData, req);
   }
 }

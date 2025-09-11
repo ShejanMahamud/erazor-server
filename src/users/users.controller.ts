@@ -17,7 +17,6 @@ export class UsersController {
   @SetMetadata('skipArcjet', true)
   @Post()
   create(@Body() createUserDto: CreateUserDto) {
-    console.log('Create User DTO:', createUserDto);
     return this.usersService.createUser(createUserDto);
   }
 

@@ -1,13 +1,17 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Polar } from '@polar-sh/sdk';
+import { validateEvent, WebhookVerificationError } from '@polar-sh/sdk/webhooks';
+import type { Request } from 'express';
 import { NotificationGateway } from 'src/notification/notification.gateway';
 import { IGlobalRes } from 'src/types';
 import { IBillingService } from './interfaces/billing.interface';
 
+
 @Injectable()
 export class BillingService implements IBillingService {
-
-  constructor(@Inject('POLAR_CLIENT') private readonly polarClient: Polar, private readonly notificationGateway: NotificationGateway) { }
+  private readonly logger = new Logger(BillingService.name)
+  constructor(@Inject('POLAR_CLIENT') private readonly polarClient: Polar, private readonly notificationGateway: NotificationGateway, private readonly config: ConfigService) { }
 
   async findAllPlans(): Promise<IGlobalRes<any>> {
     const plans = await this.polarClient.products.list({ limit: 100 })
@@ -23,7 +27,6 @@ export class BillingService implements IBillingService {
       externalCustomerId: userId,
       successUrl: `${process.env.CLIENT_URL}/dashboard/overview`,
     })
-    console.log(session);
     return {
       success: true,
       message: "Checkout session created successfully!",
@@ -196,9 +199,24 @@ export class BillingService implements IBillingService {
     }
   }
 
-  async handleWebhookEvent(eventType: string, eventData: any): Promise<IGlobalRes<any>> {
+  async handleWebhookEvent(eventType: string, eventData: any, req: Request): Promise<IGlobalRes<any>> {
     try {
-      // Handle different webhook events
+      const headers: Record<string, string> = {};
+      for (const [key, value] of Object.entries(req.headers)) {
+        if (value !== undefined) {
+          headers[key] = Array.isArray(value) ? value[0] : value;
+        }
+      }
+
+      const event = validateEvent(
+        req.body,
+        headers,
+        this.config.get<string>('POLAR_WEBHOOK_SECRET') as string,
+      )
+      if (!event) {
+        this.logger.error('Webhook signature verification failed.');
+        throw new BadRequestException('Invalid webhook signature');
+      }
       switch (eventType) {
         case 'subscription.created':
           await this.notificationGateway.sendNotification({
@@ -250,7 +268,7 @@ export class BillingService implements IBillingService {
           })
           break;
         default:
-          console.log(`Unhandled webhook event: ${eventType}`);
+          this.logger.error(`Unhandled webhook event type: ${eventType}`)
       }
 
       return {
@@ -259,6 +277,10 @@ export class BillingService implements IBillingService {
         data: { eventType, processed: true }
       };
     } catch (error) {
+      if (error instanceof WebhookVerificationError) {
+        this.logger.error('Webhook signature verification failed.', error);
+        throw new BadRequestException('Invalid webhook signature');
+      }
       return {
         success: false,
         message: "Failed to process webhook event",

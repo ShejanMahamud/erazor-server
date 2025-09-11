@@ -16,7 +16,6 @@ export class NotificationService implements INotificationService {
         message: data.message,
       },
     });
-    console.log('Saved Notification:', notification);
     return {
       success: true,
       message: "Notification saved successfully",
