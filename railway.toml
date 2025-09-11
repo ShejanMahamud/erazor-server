@@ -1,9 +1,0 @@
-[build]
-builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile"
-
-[deploy]
-startCommand = "pnpm railway:start"
-healthcheckPath = "/v1.api/health"
-healthcheckTimeout = 300
-restartPolicyType = "ON_FAILURE"
