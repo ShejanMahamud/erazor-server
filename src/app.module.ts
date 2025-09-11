@@ -1,52 +1,75 @@
 import {
-  ArcjetGuard,
   ArcjetModule,
   detectBot,
   fixedWindow,
-  shield,
+  shield
 } from '@arcjet/nest';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { SentryModule } from '@sentry/nestjs/setup';
+import { AdminModule } from './admin/admin.module';
 import { AppController } from './app.controller';
+import { BillingModule } from './billing/billing.module';
+import { PolarModule } from './billing/polar.module';
+import { ClerkModule } from './clerk/clerk.module';
+import { ImagesModule } from './images/images.module';
+import { LoggerModule } from './logger/logger.module';
+import { NotificationModule } from './notification/notification.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { QueueModule } from './queue/queue.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
+    SentryModule.forRoot(),
+    LoggerModule,
     PrismaModule,
+    ClerkModule,
     ConfigModule.forRoot({ isGlobal: true }),
     ArcjetModule.forRoot({
       isGlobal: true,
       key: process.env.ARCJET_KEY!,
       rules: [
-        // Shield protects your app from common attacks e.g. SQL injection
-        shield({ mode: 'LIVE' }),
-        // Create a bot detection rule
+        shield({
+          mode: process.env.NODE_ENV === 'production' ? 'LIVE' : 'DRY_RUN',
+        }),
+
         detectBot({
-          mode: 'LIVE', // Blocks requests. Use "DRY_RUN" to log only
-          // Block all bots except the following
+          mode: process.env.NODE_ENV === 'production' ? 'LIVE' : 'DRY_RUN',
           allow: [
-            'CATEGORY:SEARCH_ENGINE', // Google, Bing, etc
-            // Uncomment to allow these other common bot categories
-            // See the full list at https://arcjet.com/bot-list
-            //"CATEGORY:MONITOR", // Uptime monitoring services
-            //"CATEGORY:PREVIEW", // Link previews e.g. Slack, Discord
+            'CATEGORY:SEARCH_ENGINE',
+            'CATEGORY:MONITOR',
           ],
         }),
-        // Create a fixed window rate limit. Other algorithms are supported.
+
         fixedWindow({
           mode: 'LIVE',
-          window: '60s', // 10 second fixed window
-          max: 2, // Allow a maximum of 2 requests
+          window: '60s',
+          max: 60,
+        }),
+        fixedWindow({
+          mode: 'LIVE',
+          window: '30d',
+          max: 10,
+          characteristics: ['/images/remove-bg'],
         }),
       ],
-    }),
+    })
+    ,
+    BillingModule,
+    ImagesModule,
+    UsersModule,
+    PolarModule,
+    QueueModule,
+    NotificationModule,
+    AdminModule
   ],
   controllers: [AppController],
   providers: [
-    {
-      provide: 'APP_GUARD',
-      useClass: ArcjetGuard,
-    },
+    // {
+    //   provide: APP_GUARD,
+    //   useClass: ArcjetGuard,
+    // },
   ],
 })
 export class AppModule { }

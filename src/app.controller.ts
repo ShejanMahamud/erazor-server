@@ -1,10 +1,13 @@
-import { Controller, Get, Req } from '@nestjs/common';
+
+import type { ClerkClient } from '@clerk/backend';
+import { Controller, Get, Inject, Req } from '@nestjs/common';
+import * as Sentry from "@sentry/nestjs";
 import type { Request } from 'express';
 import { getSystemInfoJson } from './utils/system-info';
 
 @Controller()
 export class AppController {
-  constructor() { }
+  constructor(@Inject('CLERK_CLIENT') private readonly clerkClient: ClerkClient) { }
 
   @Get()
   getHello(@Req() req: Request) {
@@ -23,7 +26,16 @@ export class AppController {
     return {
       success: true,
       message: 'Health check passed',
-      data: getSystemInfoJson,
+      data: getSystemInfoJson(),
     };
   }
+  @Get("/debug-sentry")
+  getError() {
+    // Send a log before throwing the error
+    Sentry.logger.info('User triggered test error', {
+      action: 'test_error_endpoint',
+    });
+    throw new Error("My first Sentry error!");
+  }
+
 }
