@@ -32,6 +32,17 @@ services:
     env_file:
       - .env
 
+  uptime-kuma:
+    container_name: uptime_kuma
+    image: louislam/uptime-kuma:latest
+    ports:
+      - ${UPTIME_KUMA_PORT}:3001
+    volumes:
+      - ./uptime-kuma:/app/data
+    restart: unless-stopped
+    env_file:
+      - .env
 volumes:
   postgres_data:
   redis_data:
+  uptime_kuma_data:
