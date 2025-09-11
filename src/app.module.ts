@@ -16,6 +16,7 @@ import { NotificationModule } from './notification/notification.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { QueueModule } from './queue/queue.module';
 import { UsersModule } from './users/users.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -58,7 +59,8 @@ import { UsersModule } from './users/users.module';
     UsersModule,
     PolarModule,
     QueueModule,
-    NotificationModule
+    NotificationModule,
+    AdminModule
   ],
   controllers: [AppController],
   providers: [

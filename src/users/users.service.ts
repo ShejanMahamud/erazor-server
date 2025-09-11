@@ -33,6 +33,7 @@ export class UsersService implements IUserService {
     const user = await this.prisma.user.create({
       data: { ...createUserDto },
     });
+    await this.clerkClient.users.updateUserMetadata(createUserDto.id, { publicMetadata: { role: "USER" } });
     this.logger.log(`User with email ${createUserDto.email} and username ${createUserDto.username} created in database`);
     return {
       success: true,
@@ -167,6 +168,134 @@ export class UsersService implements IUserService {
       success: true,
       message: "User role updated successfully",
       data: user
+    };
+  }
+
+  async getAUserLoginHistory(userId: string): Promise<IGlobalRes<any>> {
+    this.logger.log(`Fetching login history for user with id ${userId}`);
+    const { data } = await this.findUserById(userId);
+    if (!data) {
+      this.logger.warn(`User with id ${userId} not found`);
+      throw new NotFoundException("User not found");
+    }
+    const logs = await this.clerkClient.sessions.getSessionList({
+      userId: data.id,
+      limit: 100,
+    });
+    this.logger.log(`Fetched ${logs.totalCount} login history records for user with id ${userId}`);
+    return {
+      success: true,
+      message: "Login history fetched successfully",
+      data: logs
+    };
+  }
+
+  async getUserDashboardStats(id: string): Promise<any> {
+    this.logger.log(`Fetching dashboard stats for user with id ${id}`);
+
+    // Get total images count
+    const totalImages = await this.prisma.image.count({
+      where: { userId: id }
+    });
+
+    // Get images by status
+    const imagesByStatus = await this.prisma.image.groupBy({
+      by: ['status'],
+      where: { userId: id },
+      _count: { status: true }
+    });
+
+    // Get recent activity (last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const recentImages = await this.prisma.image.count({
+      where: {
+        userId: id,
+        createdAt: {
+          gte: thirtyDaysAgo
+        }
+      }
+    });
+
+    // Get images processed this month
+    const currentMonth = new Date();
+    currentMonth.setDate(1);
+    currentMonth.setHours(0, 0, 0, 0);
+
+    const imagesThisMonth = await this.prisma.image.count({
+      where: {
+        userId: id,
+        createdAt: {
+          gte: currentMonth
+        }
+      }
+    });
+
+    // Get successful processing rate
+    const successfulImages = await this.prisma.image.count({
+      where: {
+        userId: id,
+        status: 'ready'
+      }
+    });
+
+    // Get storage usage (estimate based on image count)
+    const storageUsedMB = totalImages * 2.5; // Rough estimate: 2.5MB per processed image pair
+
+    // Get user's first image date for account age calculation
+    const firstImage = await this.prisma.image.findFirst({
+      where: { userId: id },
+      orderBy: { createdAt: 'asc' },
+      select: { createdAt: true }
+    });
+
+    // Calculate account activity streak (days with at least one image processed)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const dailyActivity = await this.prisma.image.groupBy({
+      by: ['createdAt'],
+      where: {
+        userId: id,
+        createdAt: {
+          gte: sevenDaysAgo
+        }
+      },
+      _count: { id: true }
+    });
+
+    const activeDays = dailyActivity.length;
+    const successRate = totalImages > 0 ? Math.round((successfulImages / totalImages) * 100) : 0;
+
+    // Format status breakdown
+    const statusBreakdown = {
+      queue: 0,
+      processing: 0,
+      ready: 0
+    };
+
+    imagesByStatus.forEach(item => {
+      statusBreakdown[item.status] = item._count.status;
+    });
+
+    this.logger.log(`Dashboard stats fetched for user ${id}: ${totalImages} total images`);
+
+    return {
+      totalImages,
+      recentImages, // Last 30 days
+      imagesThisMonth,
+      successfulImages,
+      successRate, // Percentage
+      statusBreakdown,
+      storageUsedMB: Math.round(storageUsedMB * 100) / 100, // Rounded to 2 decimal places
+      activeDays, // Days with activity in last 7 days
+      accountAge: firstImage ? Math.ceil((new Date().getTime() - firstImage.createdAt.getTime()) / (1000 * 60 * 60 * 24)) : 0, // Days since first image
+      lastActivity: totalImages > 0 ? await this.prisma.image.findFirst({
+        where: { userId: id },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true }
+      }).then(img => img?.createdAt) : null
     };
   }
 

@@ -17,6 +17,7 @@ export class UsersController {
   @SetMetadata('skipArcjet', true)
   @Post()
   create(@Body() createUserDto: CreateUserDto) {
+    console.log('Create User DTO:', createUserDto);
     return this.usersService.createUser(createUserDto);
   }
 
@@ -56,5 +57,17 @@ export class UsersController {
   @Patch('delete/:id')
   remove(@Param('id') id: string) {
     return this.usersService.updateUser(id, { isDeleted: true });
+  }
+
+  @UseGuards(ClerkGuard)
+  @Get('login-history/:userId')
+  getAUserLoginHistory(@Param('userId') userId: string) {
+    return this.usersService.getAUserLoginHistory(userId);
+  }
+
+  @UseGuards(ClerkGuard)
+  @Get('dashboard-stats/:id')
+  getUserDashboardStats(@Param('id') id: string) {
+    return this.usersService.getUserDashboardStats(id);
   }
 }

@@ -4,13 +4,14 @@ import { ConfigService } from "@nestjs/config";
 import { Polar } from "@polar-sh/sdk";
 import axios from "axios";
 import { Job } from "bullmq";
+import { NotificationGateway } from "src/notification/notification.gateway";
 import { PrismaService } from "src/prisma/prisma.service";
 import { ImageGateway } from "../image.gateway";
 import FormData = require("form-data");
 type PollImagePayload = { processId: string };
 @Processor('image-processor')
 export class ImageProcessor extends WorkerHost {
-    constructor(private readonly config: ConfigService, private readonly prisma: PrismaService, @InjectQueue('image-processor') private readonly imageProcessorQueue, private readonly imageGateway: ImageGateway, @Inject('POLAR_CLIENT') private readonly polarClient: Polar) {
+    constructor(private readonly config: ConfigService, private readonly prisma: PrismaService, @InjectQueue('image-processor') private readonly imageProcessorQueue, private readonly imageGateway: ImageGateway, @Inject('POLAR_CLIENT') private readonly polarClient: Polar, private readonly notificationGateway: NotificationGateway) {
         super();
     }
 
@@ -94,8 +95,8 @@ export class ImageProcessor extends WorkerHost {
             filename?: string;
         };
     }>): Promise<void> {
+        console.log(`Starting image processing`, job);
         const data = await this.handleImageProcessing(job);
-        const user = await this.findUserById(job.data.userId);
         await this.prisma.image.create({
             data: {
                 userId: job.data.userId,
@@ -105,6 +106,11 @@ export class ImageProcessor extends WorkerHost {
                 originalImageUrlHQ: data.source.url,
             }
         });
+        await this.notificationGateway.sendNotification({
+            userId: job.data.userId,
+            type: 'INFO',
+            message: `Your image ${job.data.file.originalname} is being processed.`,
+        })
         await this.imageProcessorQueue.add('poll-image', {
             processId: data.id
         }, {
@@ -134,6 +140,7 @@ export class ImageProcessor extends WorkerHost {
                     bgRemovedImageUrlLQ: result.data.processed?.thumb2x_url || null,
                 },
             });
+            console.log(result.data);
             await this.polarClient.events.ingest({
                 events: [{
                     name: "bg_remove",
@@ -145,6 +152,12 @@ export class ImageProcessor extends WorkerHost {
                     }
                 }]
             });
+            console.log(`Image ${image.id} processed successfully.`);
+            await this.notificationGateway.sendNotification({
+                userId: image.userId,
+                type: 'INFO',
+                message: `Your image ${image.originalFileName} is being processed.`,
+            })
             this.imageGateway.sendImageUpdate(updatedImage.userId, updatedImage);
         } else if (
             result.data.statusName === 'processing' ||
