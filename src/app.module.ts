@@ -4,8 +4,10 @@ import {
   fixedWindow,
   shield
 } from '@arcjet/nest';
+import { HttpModule } from '@nestjs/axios';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { TerminusModule } from '@nestjs/terminus';
 import { SentryModule } from '@sentry/nestjs/setup';
 import { AdminModule } from './admin/admin.module';
 import { AppController } from './app.controller';
@@ -21,6 +23,8 @@ import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
+    HttpModule,
+    TerminusModule,
     SentryModule.forRoot(),
     LoggerModule,
     PrismaModule,
