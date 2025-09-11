@@ -12,17 +12,15 @@ function formatUptime(seconds: number): string {
 
 export function getSystemInfoJson() {
     return {
-        system: {
-            hostname: os.hostname(),
-            osType: os.type(),
-            platform: os.platform(),
-            architecture: os.arch(),
-            uptime: formatUptime(os.uptime()),
-            memory: {
-                total: formatBytes(os.totalmem()),
-                free: formatBytes(os.freemem()),
-                used: formatBytes(os.totalmem() - os.freemem()),
-            },
+        hostname: os.hostname(),
+        osType: os.type(),
+        platform: os.platform(),
+        architecture: os.arch(),
+        uptime: formatUptime(os.uptime()),
+        memory: {
+            total: formatBytes(os.totalmem()),
+            free: formatBytes(os.freemem()),
+            used: formatBytes(os.totalmem() - os.freemem()),
         },
         cpu: {
             coreCount: os.cpus().length,

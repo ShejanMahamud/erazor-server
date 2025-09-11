@@ -1,13 +1,23 @@
 
-import type { ClerkClient } from '@clerk/backend';
-import { Controller, Get, Inject, Req } from '@nestjs/common';
-import * as Sentry from "@sentry/nestjs";
+import { Controller, Get, Req } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { HealthCheckService, HttpHealthIndicator, PrismaHealthIndicator } from '@nestjs/terminus';
 import type { Request } from 'express';
+import { PrismaService } from './prisma/prisma.service';
 import { getSystemInfoJson } from './utils/system-info';
 
 @Controller()
 export class AppController {
-  constructor(@Inject('CLERK_CLIENT') private readonly clerkClient: ClerkClient) { }
+  constructor(
+    private health: HealthCheckService,
+    private db: PrismaHealthIndicator,
+    private http: HttpHealthIndicator,
+    private prisma: PrismaService,
+    private readonly config: ConfigService
+  ) {
+
+
+  }
 
   @Get()
   getHello(@Req() req: Request) {
@@ -22,20 +32,20 @@ export class AppController {
   }
 
   @Get('health')
-  getHealth() {
+  async getHealth(@Req() req: Request) {
+    const system = getSystemInfoJson();
+    const health = await this.health.check([
+      () => this.db.pingCheck('database', this.prisma),
+      () => this.http.pingCheck('api', `${req.protocol}://${req.get('host')}/v1/api`),
+    ]);
     return {
       success: true,
       message: 'Health check passed',
-      data: getSystemInfoJson(),
+      data: {
+        health,
+        system
+      },
     };
-  }
-  @Get("/debug-sentry")
-  getError() {
-    // Send a log before throwing the error
-    Sentry.logger.info('User triggered test error', {
-      action: 'test_error_endpoint',
-    });
-    throw new Error("My first Sentry error!");
   }
 
 }

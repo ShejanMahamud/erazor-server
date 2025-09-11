@@ -39,6 +39,8 @@ services:
       - ${UPTIME_KUMA_PORT}:3001
     volumes:
       - ./uptime-kuma:/app/data
+      - ./preseed/kuma.db:/app/data/kuma.db
+
     restart: unless-stopped
     env_file:
       - .env

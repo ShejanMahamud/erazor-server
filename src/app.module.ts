@@ -4,14 +4,17 @@ import {
   fixedWindow,
   shield
 } from '@arcjet/nest';
+import { HttpModule } from '@nestjs/axios';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { TerminusModule } from '@nestjs/terminus';
 import { SentryModule } from '@sentry/nestjs/setup';
 import { AdminModule } from './admin/admin.module';
 import { AppController } from './app.controller';
 import { BillingModule } from './billing/billing.module';
 import { PolarModule } from './billing/polar.module';
 import { ClerkModule } from './clerk/clerk.module';
+import { CronModule } from './cron/cron.module';
 import { ImagesModule } from './images/images.module';
 import { LoggerModule } from './logger/logger.module';
 import { NotificationModule } from './notification/notification.module';
@@ -21,6 +24,8 @@ import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
+    HttpModule,
+    TerminusModule,
     SentryModule.forRoot(),
     LoggerModule,
     PrismaModule,
@@ -62,7 +67,8 @@ import { UsersModule } from './users/users.module';
     PolarModule,
     QueueModule,
     NotificationModule,
-    AdminModule
+    AdminModule,
+    CronModule
   ],
   controllers: [AppController],
   providers: [
