@@ -1,16 +1,29 @@
 import { BadRequestException, CanActivate, ExecutionContext, Inject, Injectable } from "@nestjs/common";
 import { Polar } from "@polar-sh/sdk";
+import Redis from "ioredis";
+import { REDIS_CLIENT } from "src/queue/queue.module";
 
 @Injectable()
 export class FileSizeLimitGuard implements CanActivate {
-    constructor(@Inject('POLAR_CLIENT') private readonly polarClient: Polar) { }
+    constructor(@Inject('POLAR_CLIENT') private readonly polarClient: Polar, @Inject(REDIS_CLIENT) private readonly redisClient: Redis) { }
     async canActivate(context: ExecutionContext): Promise<boolean> {
         const req = context.switchToHttp().getRequest();
         const file = req.file;
         if (!file) return false;
 
         try {
-            // Correct method call
+            //check the customer max_upload_size if exists in redis cache
+            const cachedLimit = await this.redisClient.get(`user:${req.user.id}:file_size_limit`);
+            if (cachedLimit) {
+                const MAX_FILE_SIZE = parseInt(cachedLimit);
+                if (file.size > MAX_FILE_SIZE) {
+                    throw new BadRequestException(
+                        `File size exceeds the limit of ${MAX_FILE_SIZE / (1024 * 1024)}MB.`
+                    );
+                }
+                return true;
+            }
+            // Check if customer exists
             const customer = await this.polarClient.customers.getStateExternal({
                 externalId: req.user.id,
             })
@@ -27,6 +40,9 @@ export class FileSizeLimitGuard implements CanActivate {
                 throw new BadRequestException('File size limit not configured for this plan');
             }
             const MAX_FILE_SIZE = parseInt(product.metadata?.file_size_limit as string);
+            //set max_file_size in redis cache
+            await this.redisClient.set(`user:${req.user.id}:file_size_limit`, MAX_FILE_SIZE, 'EX', 60 * 5);
+
             if (file.size > MAX_FILE_SIZE) {
                 throw new BadRequestException(`File size exceeds the limit of ${MAX_FILE_SIZE / (1024 * 1024)}MB.`);
             }
