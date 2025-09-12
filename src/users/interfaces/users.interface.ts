@@ -23,5 +23,5 @@ export interface IUserService {
     updateUser(id: string, dto: UpdateUserDto): Promise<IGlobalRes<IUser | null>>;
     changeRole(id: string, role: Roles): Promise<IGlobalRes<IUser | null>>;
     getAUserLoginHistory(userId: string): Promise<IGlobalRes<any>>;
-    getUserDashboardStats(id: string): Promise<any>;
+    getUserDashboardStats(id: string): Promise<IGlobalRes<any>>;
 }
