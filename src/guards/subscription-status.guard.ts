@@ -25,6 +25,8 @@ export class ActiveSubscriptionGuard implements CanActivate {
             if (!activeSubscriptions) return false;
             // cache the subscription status for 5 minutes
             await this.redisClient.set(`user:${user.id}:has_active_subscription`, activeSubscriptions[0].status === 'active' ? 'true' : 'false', 'EX', 60 * 5);
+            //save user isPaid or isFree
+            await this.redisClient.set(`user:${user.id}:is_paid`, activeSubscriptions[0].amount > 0 ? 'true' : 'false', 'EX', 60 * 5);
             return activeSubscriptions[0].status === 'active';
 
         }

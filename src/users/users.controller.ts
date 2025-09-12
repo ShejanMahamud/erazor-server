@@ -2,7 +2,7 @@ import { Body, Controller, DefaultValuePipe, Get, Param, ParseIntPipe, Patch, Po
 import { Permissions, Roles, VerificationStatus } from 'generated/prisma';
 import { PermissionsRequired } from 'src/decorators/permissions.decorator';
 import { RolesRequired } from 'src/decorators/roles.decorator';
-import { ClerkGuard } from 'src/guards/clerk-guard';
+import { ClerkGuard } from 'src/guards/clerk.guard';
 import { PermissionsGuard } from 'src/guards/permissions.guard';
 import { RolesGuard } from 'src/guards/roles.guard';
 import { CreateUserDto } from './dto/create-user.dto';

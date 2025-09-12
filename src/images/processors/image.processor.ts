@@ -4,14 +4,16 @@ import { ConfigService } from "@nestjs/config";
 import { Polar } from "@polar-sh/sdk";
 import axios from "axios";
 import { Job } from "bullmq";
+import Redis from "ioredis";
 import { NotificationGateway } from "src/notification/notification.gateway";
 import { PrismaService } from "src/prisma/prisma.service";
+import { REDIS_CLIENT } from "src/queue/queue.module";
 import { ImageGateway } from "../image.gateway";
 import FormData = require("form-data");
 type PollImagePayload = { processId: string };
 @Processor('image-processor')
 export class ImageProcessor extends WorkerHost {
-    constructor(private readonly config: ConfigService, private readonly prisma: PrismaService, @InjectQueue('image-processor') private readonly imageProcessorQueue, private readonly imageGateway: ImageGateway, @Inject('POLAR_CLIENT') private readonly polarClient: Polar, private readonly notificationGateway: NotificationGateway) {
+    constructor(private readonly config: ConfigService, private readonly prisma: PrismaService, @InjectQueue('image-processor') private readonly imageProcessorQueue, private readonly imageGateway: ImageGateway, @Inject('POLAR_CLIENT') private readonly polarClient: Polar, private readonly notificationGateway: NotificationGateway, @Inject(REDIS_CLIENT) private readonly redisClient: Redis) {
         super();
     }
 
@@ -128,15 +130,24 @@ export class ImageProcessor extends WorkerHost {
 
         const result = await this.findImageByProcessId(image.processId);
 
+        let isPaid = await this.redisClient.get(`user:${image.userId}:is_paid`);
+        if (isPaid === null) {
+            const customer = await this.polarClient.customers.getStateExternal({ externalId: image.userId });
+            isPaid = customer.activeSubscriptions?.[0]?.amount > 0 ? 'true' : 'false';
+            await this.redisClient.set(`user:${image.userId}:is_paid`, isPaid, 'EX', 300);
+        }
+        const freeUser = isPaid === 'false';
+
+
         if (result.data.statusName === 'ready') {
             const updatedImage = await this.prisma.image.update({
                 where: { id: image.id },
                 data: {
                     status: 'ready',
                     originalImageUrlLQ: result.data.source?.thumb2x_url || null,
-                    bgRemovedFileName: `erazor_${result.data.fileName}.png`,
-                    bgRemovedImageUrlHQ: result.data.processed?.url || null,
-                    bgRemovedImageUrlLQ: result.data.processed?.thumb2x_url || null,
+                    bgRemovedFileName: `erazor_bg_rmv${image.userId}.png`,
+                    ...(freeUser && { bgRemovedImageUrlLQ: result.data.processed?.thumb2x_url || null }),
+                    ...(!freeUser && { bgRemovedImageUrlHQ: result.data.processed?.url || null }),
                 },
             });
             await this.polarClient.events.ingest({
