@@ -83,6 +83,9 @@ importers:
       axios:
         specifier: ^1.11.0
         version: 1.11.0
+      body-parser:
+        specifier: ^2.2.0
+        version: 2.2.0
       bullmq:
         specifier: ^5.58.4
         version: 5.58.4
@@ -122,6 +125,9 @@ importers:
       socket.io:
         specifier: ^4.8.1
         version: 4.8.1
+      string-sanitizer:
+        specifier: ^2.0.2
+        version: 2.0.2
       transparent-background:
         specifier: ^1.5.0
         version: 1.5.0
@@ -4025,6 +4031,9 @@ packages:
   string-length@4.0.2:
     resolution: {integrity: sha512-+l6rNN5fYHNhZZy41RXsYptCjA2Igmq4EG7kZAYFQI1E1VTXarr6ZPXBg6eq7Y6eK4FEhY6AJlyuFIb/v/S0VQ==}
     engines: {node: '>=10'}
+
+  string-sanitizer@2.0.2:
+    resolution: {integrity: sha512-zECtWmUawolaVbUOdDRdhAM4jN7wl1sB4indjTmHpUFavzFSeYEDSVF85dZPPyDKoMRTJbrz+Tp0SjPPCWxscA==}
 
   string-width@4.2.3:
     resolution: {integrity: sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g==}
@@ -8810,6 +8819,8 @@ snapshots:
     dependencies:
       char-regex: 1.0.2
       strip-ansi: 6.0.1
+
+  string-sanitizer@2.0.2: {}
 
   string-width@4.2.3:
     dependencies:
