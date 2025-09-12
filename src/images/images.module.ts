@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { BillingModule } from 'src/billing/billing.module';
 import { NotificationModule } from 'src/notification/notification.module';
 import { QueueModule } from 'src/queue/queue.module';
 import { ImageGateway } from './image.gateway';
@@ -7,7 +8,7 @@ import { ImagesService } from './images.service';
 import { ImageProcessor } from './processors/image.processor';
 
 @Module({
-  imports: [QueueModule, NotificationModule],
+  imports: [QueueModule, NotificationModule, BillingModule],
   controllers: [ImagesController],
   providers: [ImagesService, ImageGateway, ImageProcessor],
 })

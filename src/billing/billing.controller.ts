@@ -37,8 +37,6 @@ export class BillingController {
     return this.billingService.userCurrentSubscription(userId);
   }
 
-
-  // Usage & Billing
   @UseGuards(ClerkGuard)
   @Get('usage/:userId')
   getUserUsage(@Param('userId') userId: string) {
@@ -47,8 +45,8 @@ export class BillingController {
 
   @UseGuards(ClerkGuard)
   @Get('invoices')
-  getInvoices(@Query('customerId') customerId?: string) {
-    return this.billingService.getInvoices(customerId);
+  getInvoices(@Query('userId') userId?: string) {
+    return this.billingService.getInvoices(userId);
   }
 
   @UseGuards(ClerkGuard)
@@ -69,17 +67,17 @@ export class BillingController {
   @RolesRequired(Roles.ADMIN)
   @PermissionsRequired(Permissions.MANAGE_SUBSCRIPTIONS)
   @UseGuards(ClerkGuard, RolesGuard, PermissionsGuard)
-  @Get('admin/customers/:id')
-  getCustomerById(@Param('id') id: string) {
-    return this.billingService.getCustomerById(id);
+  @Get('admin/customers/:userId')
+  getCustomerById(@Param('userId') userId: string) {
+    return this.billingService.getCustomerById(userId);
   }
 
   @RolesRequired(Roles.ADMIN)
   @PermissionsRequired(Permissions.MANAGE_SUBSCRIPTIONS)
   @UseGuards(ClerkGuard, RolesGuard, PermissionsGuard)
-  @Get('admin/customers/external/:externalId')
-  getCustomerByExternalId(@Param('externalId') externalId: string) {
-    return this.billingService.getCustomerByExternalId(externalId);
+  @Get('admin/customers/external/:userId')
+  getCustomerByExternalId(@Param('userId') userId: string) {
+    return this.billingService.getCustomerByExternalId(userId);
   }
 
   @RolesRequired(Roles.ADMIN)

@@ -50,6 +50,30 @@ CREATE TABLE "public"."images" (
 );
 
 -- CreateTable
+CREATE TABLE "public"."system" (
+    "id" INTEGER NOT NULL DEFAULT 1,
+    "key" TEXT NOT NULL,
+    "value" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "system_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "public"."subscriptions" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "polarSubId" TEXT NOT NULL,
+    "isActive" BOOLEAN NOT NULL DEFAULT false,
+    "currentPeriodEnd" TIMESTAMP(3) NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "subscriptions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "public"."notifications" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -96,6 +120,21 @@ CREATE INDEX "images_processId_idx" ON "public"."images"("processId");
 CREATE INDEX "images_status_idx" ON "public"."images"("status");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "system_key_key" ON "public"."system"("key");
+
+-- CreateIndex
+CREATE INDEX "system_key_idx" ON "public"."system"("key");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "subscriptions_userId_key" ON "public"."subscriptions"("userId");
+
+-- CreateIndex
+CREATE INDEX "subscriptions_userId_idx" ON "public"."subscriptions"("userId");
+
+-- CreateIndex
+CREATE INDEX "subscriptions_isActive_idx" ON "public"."subscriptions"("isActive");
+
+-- CreateIndex
 CREATE INDEX "notifications_userId_idx" ON "public"."notifications"("userId");
 
 -- CreateIndex
@@ -106,6 +145,9 @@ CREATE INDEX "notifications_isRead_idx" ON "public"."notifications"("isRead");
 
 -- AddForeignKey
 ALTER TABLE "public"."images" ADD CONSTRAINT "images_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."users"("userId") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."subscriptions" ADD CONSTRAINT "subscriptions_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."users"("userId") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "public"."notifications" ADD CONSTRAINT "notifications_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."users"("userId") ON DELETE CASCADE ON UPDATE CASCADE;
