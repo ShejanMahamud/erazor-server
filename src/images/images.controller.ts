@@ -3,10 +3,11 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ImageStatus, Permissions, Roles } from 'generated/prisma';
 import { PermissionsRequired } from 'src/decorators/permissions.decorator';
 import { RolesRequired } from 'src/decorators/roles.decorator';
-import { ClerkGuard } from 'src/guards/clerk-guard';
+import { ClerkGuard } from 'src/guards/clerk.guard';
 import { FileSizeLimitGuard } from 'src/guards/file-size-limit.guard';
 import { HasCreditGuard } from 'src/guards/has-credit.guard';
 import { PermissionsGuard } from 'src/guards/permissions.guard';
+import { RateLimitGuard } from 'src/guards/rate-limit.guard';
 import { RolesGuard } from 'src/guards/roles.guard';
 import { ActiveSubscriptionGuard } from 'src/guards/subscription-status.guard';
 import { ImagesService } from './images.service';
@@ -15,11 +16,11 @@ import { ImagesService } from './images.service';
 export class ImagesController {
   constructor(private readonly imagesService: ImagesService) { }
 
-  @UseGuards(ClerkGuard, ActiveSubscriptionGuard, HasCreditGuard, FileSizeLimitGuard)
+  @UseGuards(ClerkGuard, RateLimitGuard(20, 60), ActiveSubscriptionGuard, HasCreditGuard, FileSizeLimitGuard)
   @Post('process')
   @UseInterceptors(FileInterceptor('file', {
     limits: {
-      fileSize: 20 * 1024 * 1024,
+      fileSize: 20 * 1024 * 1024, //reject the request if file size > 20MB
     }
   }))
   processImage(@Body() { userId }: { userId: string }, @UploadedFile() file: Express.Multer.File) {
