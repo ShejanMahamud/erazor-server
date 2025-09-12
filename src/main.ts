@@ -8,7 +8,7 @@ import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/all-exception.filter';
 import "./instrument";
 import { LoggerInterceptor } from './logger/logger.interceptor';
-import { SanitizePipe } from './pipes/santitize,pipe';
+import { SanitizePipe } from './pipes/sanitize.pipe';
 
 
 async function bootstrap() {

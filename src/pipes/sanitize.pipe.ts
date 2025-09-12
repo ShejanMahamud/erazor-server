@@ -1,5 +1,5 @@
 import { ArgumentMetadata, Injectable, PipeTransform } from '@nestjs/common';
-import { stripTags } from 'string-sanitizer';
+import { sanitize } from 'string-sanitizer';
 
 @Injectable()
 export class SanitizePipe implements PipeTransform {
@@ -9,8 +9,9 @@ export class SanitizePipe implements PipeTransform {
 
     private sanitize(input: any): any {
         if (typeof input === 'string') {
-            // Trim whitespace and strip HTML tags
-            return stripTags(input.trim());
+            // Remove HTML tags using regex, then sanitize special characters
+            const withoutHTML = input.replace(/<[^>]*>/g, '');
+            return sanitize(withoutHTML.trim()); // ✅ removes HTML tags and special characters
         }
 
         if (Array.isArray(input)) {
@@ -25,6 +26,6 @@ export class SanitizePipe implements PipeTransform {
             return sanitizedObject;
         }
 
-        return input; // numbers, booleans, null, undefined
+        return input;
     }
 }
