@@ -119,6 +119,6 @@ export class BillingController {
   @Post('webhook')
   handleWebhook(@Body() webhookData: any, req: Request) {
     const eventType = webhookData.type || webhookData.event_type;
-    return this.billingService.handleWebhookEvent(eventType, webhookData, req);
+    return this.billingService.handleWebhookEvent(req);
   }
 }

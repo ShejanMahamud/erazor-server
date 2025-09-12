@@ -5,7 +5,7 @@ import { backupDatabase } from 'src/backup';
 
 @Injectable()
 export class CronService {
-    @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+    @Cron(CronExpression.EVERY_30_SECONDS)
     async DBBackup() {
         await backupDatabase();
     }

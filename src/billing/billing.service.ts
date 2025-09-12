@@ -4,6 +4,7 @@ import { Polar } from '@polar-sh/sdk';
 import { validateEvent, WebhookVerificationError } from '@polar-sh/sdk/webhooks';
 import type { Request } from 'express';
 import { NotificationGateway } from 'src/notification/notification.gateway';
+import { PrismaService } from 'src/prisma/prisma.service';
 import { IGlobalRes } from 'src/types';
 import { IBillingService } from './interfaces/billing.interface';
 
@@ -11,7 +12,7 @@ import { IBillingService } from './interfaces/billing.interface';
 @Injectable()
 export class BillingService implements IBillingService {
   private readonly logger = new Logger(BillingService.name)
-  constructor(@Inject('POLAR_CLIENT') private readonly polarClient: Polar, private readonly notificationGateway: NotificationGateway, private readonly config: ConfigService) { }
+  constructor(@Inject('POLAR_CLIENT') private readonly polarClient: Polar, private readonly notificationGateway: NotificationGateway, private readonly config: ConfigService, private readonly prisma: PrismaService) { }
 
   async findAllPlans(): Promise<IGlobalRes<any>> {
     const plans = await this.polarClient.products.list({ limit: 100 })
@@ -195,7 +196,7 @@ export class BillingService implements IBillingService {
     }
   }
 
-  async handleWebhookEvent(eventType: string, eventData: any, req: Request): Promise<IGlobalRes<any>> {
+  async handleWebhookEvent(req: Request): Promise<IGlobalRes<any>> {
     try {
       const headers: Record<string, string> = {};
       for (const [key, value] of Object.entries(req.headers)) {
@@ -213,15 +214,34 @@ export class BillingService implements IBillingService {
         this.logger.error('Webhook signature verification failed.');
         throw new BadRequestException('Invalid webhook signature');
       }
+
+      const eventType = event.type;
+      const eventData = event.data as unknown as any;
+
       switch (eventType) {
         case 'subscription.created':
+          await this.prisma.subscription.create({
+            data: {
+              userId: eventData?.customer?.external_id! as string,
+              polarSubId: eventData.id,
+              status: eventData.status,
+              currentPeriodEnd: new Date(eventData.current_period_end),
+            }
+          })
           await this.notificationGateway.sendNotification({
-            userId: eventData.customer.externalId,
+            userId: eventData?.customer?.external_id,
             type: 'INFO',
             message: `Your subscription has been created successfully!`,
           })
           break;
         case 'subscription.updated':
+          await this.prisma.subscription.update({
+            where: { id: eventData?.id! as string },
+            data: {
+              status: eventData.status,
+              currentPeriodEnd: new Date(eventData.current_period_end),
+            }
+          })
           await this.notificationGateway.sendNotification({
             userId: eventData.customer.externalId,
             type: 'INFO',
@@ -229,6 +249,13 @@ export class BillingService implements IBillingService {
           })
           break;
         case 'subscription.active':
+          await this.prisma.subscription.update({
+            where: { id: eventData?.id! as string },
+            data: {
+              status: eventData.status,
+              currentPeriodEnd: new Date(eventData.current_period_end),
+            }
+          })
           await this.notificationGateway.sendNotification({
             userId: eventData.customer.externalId,
             type: 'INFO',
@@ -236,6 +263,13 @@ export class BillingService implements IBillingService {
           })
           break;
         case 'subscription.canceled':
+          await this.prisma.subscription.update({
+            where: { id: eventData?.id! as string },
+            data: {
+              status: eventData.status,
+              currentPeriodEnd: new Date(eventData.current_period_end),
+            }
+          })
           await this.notificationGateway.sendNotification({
             userId: eventData.customer.externalId,
             type: 'INFO',
@@ -243,6 +277,7 @@ export class BillingService implements IBillingService {
           })
           break;
         case 'benefit_grant.cycled':
+
           await this.notificationGateway.sendNotification({
             userId: eventData.customer.externalId,
             type: 'INFO',
