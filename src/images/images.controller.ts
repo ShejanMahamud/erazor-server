@@ -1,5 +1,6 @@
-import { Body, Controller, DefaultValuePipe, Delete, Get, Param, ParseIntPipe, Post, Query, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Controller, DefaultValuePipe, Delete, Get, Param, ParseIntPipe, Post, Query, Req, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import type { Request } from 'express';
 import { ImageStatus, Permissions, Roles } from 'generated/prisma';
 import { PermissionsRequired } from 'src/decorators/permissions.decorator';
 import { RolesRequired } from 'src/decorators/roles.decorator';
@@ -12,6 +13,7 @@ import { RolesGuard } from 'src/guards/roles.guard';
 import { ActiveSubscriptionGuard } from 'src/guards/subscription-status.guard';
 import { ImagesService } from './images.service';
 
+
 @Controller('images')
 export class ImagesController {
   constructor(private readonly imagesService: ImagesService) { }
@@ -21,10 +23,17 @@ export class ImagesController {
   @UseInterceptors(FileInterceptor('file', {
     limits: {
       fileSize: 20 * 1024 * 1024, //reject the request if file size > 20MB
+    },
+    fileFilter: (_, file, cb) => {
+      if (file.mimetype.match(/\/(jpg|jpeg|png|gif|bmp|tiff|webp)$/)) {
+        cb(null, true);
+      } else {
+        cb(new BadRequestException('Only image files are allowed!'), false);
+      }
     }
   }))
-  processImage(@Body() { userId }: { userId: string }, @UploadedFile() file: Express.Multer.File) {
-    return this.imagesService.processImage(userId, file);
+  processImage(@Req() req: Request, @UploadedFile() file: Express.Multer.File) {
+    return this.imagesService.processImage(req.user.sub, file);
   }
 
   @UseGuards(ClerkGuard)

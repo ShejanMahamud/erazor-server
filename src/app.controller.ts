@@ -1,12 +1,14 @@
 
 import { Controller, Get, Req } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { ApiExcludeController } from '@nestjs/swagger';
 import { HealthCheckService, HttpHealthIndicator, PrismaHealthIndicator } from '@nestjs/terminus';
 import type { Request } from 'express';
 import { PrismaService } from './prisma/prisma.service';
 import { getSystemInfoJson } from './utils/system-info';
 
 @Controller()
+@ApiExcludeController()
 export class AppController {
   constructor(
     private health: HealthCheckService,

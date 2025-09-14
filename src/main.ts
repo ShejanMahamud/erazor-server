@@ -1,12 +1,15 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import * as bodyParser from 'body-parser';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/all-exception.filter';
 import "./instrument";
 import { LoggerInterceptor } from './logger/logger.interceptor';
+import { SanitizePipe } from './pipes/sanitize.pipe';
+
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -24,9 +27,12 @@ async function bootstrap() {
         enableImplicitConversion: true,
       },
     }),
+    new SanitizePipe()
   );
   app.useGlobalFilters(new AllExceptionsFilter());
   app.use(helmet());
+  app.use(bodyParser.json({ limit: '100kb' }));
+  app.use(bodyParser.urlencoded({ limit: '100kb', extended: true }));
   app.setGlobalPrefix('v1/api');
   const loggingInterceptor = app.get(LoggerInterceptor);
   app.useGlobalInterceptors(loggingInterceptor);
@@ -70,6 +76,6 @@ async function bootstrap() {
   const documentFactory = () => SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('/v1/api/docs', app, documentFactory);
 
-  await app.listen(process.env.PORT ?? 3000);
+  await app.listen(process.env.PORT ?? 3000, '0.0.0.0');
 }
 bootstrap();

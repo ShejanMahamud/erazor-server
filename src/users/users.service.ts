@@ -1,7 +1,9 @@
 import type { ClerkClient } from '@clerk/backend';
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Roles, VerificationStatus } from 'generated/prisma';
+import Redis from 'ioredis';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { REDIS_CLIENT } from 'src/queue/queue.module';
 import { IGlobalMeta, IGlobalRes } from 'src/types';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -11,7 +13,7 @@ import { IUser, IUserService } from './interfaces/users.interface';
 export class UsersService implements IUserService {
   private readonly logger = new Logger(UsersService.name);
 
-  constructor(private readonly prisma: PrismaService, @Inject('CLERK_CLIENT') private readonly clerkClient: ClerkClient) { }
+  constructor(private readonly prisma: PrismaService, @Inject('CLERK_CLIENT') private readonly clerkClient: ClerkClient, @Inject(REDIS_CLIENT) private readonly redisClient: Redis) { }
 
   async createUser(createUserDto: CreateUserDto): Promise<IGlobalRes<IUser>> {
     this.logger.log(`Attempting to create user with email ${createUserDto.email} and username ${createUserDto.username}`);
@@ -190,113 +192,249 @@ export class UsersService implements IUserService {
     };
   }
 
-  async getUserDashboardStats(id: string): Promise<any> {
+  async getUserDashboardStats(id: string): Promise<IGlobalRes<any>> {
     this.logger.log(`Fetching dashboard stats for user with id ${id}`);
 
-    // Get total images count
-    const totalImages = await this.prisma.image.count({
-      where: { userId: id }
-    });
+    try {
+      // Check Redis cache first
+      const cacheKey = `user:${id}:dashboard_stats`;
+      const cachedStats = await this.redisClient.get(cacheKey);
 
-    // Get images by status
-    const imagesByStatus = await this.prisma.image.groupBy({
-      by: ['status'],
-      where: { userId: id },
-      _count: { status: true }
-    });
-
-    // Get recent activity (last 30 days)
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    const recentImages = await this.prisma.image.count({
-      where: {
-        userId: id,
-        createdAt: {
-          gte: thirtyDaysAgo
-        }
+      if (cachedStats) {
+        this.logger.log(`Dashboard stats found in cache for user ${id}`);
+        return {
+          success: true,
+          message: "Dashboard stats fetched successfully (cached)",
+          data: JSON.parse(cachedStats)
+        };
       }
-    });
 
-    // Get images processed this month
-    const currentMonth = new Date();
-    currentMonth.setDate(1);
-    currentMonth.setHours(0, 0, 0, 0);
+      // Verify user exists - get from database directly to access all fields
+      const user = await this.prisma.user.findUnique({
+        where: { id }
+      });
 
-    const imagesThisMonth = await this.prisma.image.count({
-      where: {
-        userId: id,
-        createdAt: {
-          gte: currentMonth
-        }
+      if (!user) {
+        this.logger.warn(`User with id ${id} not found`);
+        throw new NotFoundException("User not found");
       }
-    });
 
-    // Get successful processing rate
-    const successfulImages = await this.prisma.image.count({
-      where: {
-        userId: id,
-        status: 'ready'
+      // Get current date for calculations
+      const now = new Date();
+      const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+      const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+      // Check individual cache keys for frequently accessed data
+      const totalImagesCacheKey = `user:${id}:total_images`;
+      const monthlyImagesCacheKey = `user:${id}:monthly_images:${now.getFullYear()}-${now.getMonth()}`;
+      const lastMonthImagesCacheKey = `user:${id}:monthly_images:${startOfLastMonth.getFullYear()}-${startOfLastMonth.getMonth()}`;
+
+      // Try to get cached values, fallback to database queries
+      let totalImagesProcessed = await this.redisClient.get(totalImagesCacheKey);
+      if (!totalImagesProcessed) {
+        totalImagesProcessed = String(await this.prisma.image.count({
+          where: { userId: user.id, status: 'ready' }
+        }));
+        // Cache for 10 minutes
+        await this.redisClient.set(totalImagesCacheKey, totalImagesProcessed, 'EX', 600);
+      } else {
+        totalImagesProcessed = String(totalImagesProcessed);
       }
-    });
 
-    // Get storage usage (estimate based on image count)
-    const storageUsedMB = totalImages * 2.5; // Rough estimate: 2.5MB per processed image pair
+      let imagesThisMonth = await this.redisClient.get(monthlyImagesCacheKey);
+      if (!imagesThisMonth) {
+        imagesThisMonth = String(await this.prisma.image.count({
+          where: {
+            userId: user.id,
+            status: 'ready',
+            createdAt: { gte: startOfCurrentMonth }
+          }
+        }));
+        // Cache for 1 hour
+        await this.redisClient.set(monthlyImagesCacheKey, imagesThisMonth, 'EX', 3600);
+      } else {
+        imagesThisMonth = String(imagesThisMonth);
+      }
 
-    // Get user's first image date for account age calculation
-    const firstImage = await this.prisma.image.findFirst({
-      where: { userId: id },
-      orderBy: { createdAt: 'asc' },
-      select: { createdAt: true }
-    });
+      let lastMonthImagesProcessed = await this.redisClient.get(lastMonthImagesCacheKey);
+      if (!lastMonthImagesProcessed) {
+        lastMonthImagesProcessed = String(await this.prisma.image.count({
+          where: {
+            userId: user.id,
+            status: 'ready',
+            createdAt: {
+              gte: startOfLastMonth,
+              lte: endOfLastMonth
+            }
+          }
+        }));
+        // Cache for 24 hours (last month data rarely changes)
+        await this.redisClient.set(lastMonthImagesCacheKey, lastMonthImagesProcessed, 'EX', 86400);
+      } else {
+        lastMonthImagesProcessed = String(lastMonthImagesProcessed);
+      }
 
-    // Calculate account activity streak (days with at least one image processed)
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      // Current Subscription Status (cache for 30 minutes)
+      const subscriptionCacheKey = `user:${id}:subscription`;
+      let currentSubscription = await this.redisClient.get(subscriptionCacheKey);
+      if (!currentSubscription) {
+        const subscription = await this.prisma.subscription.findUnique({
+          where: { userId: user.id }
+        });
+        currentSubscription = JSON.stringify(subscription);
+        await this.redisClient.set(subscriptionCacheKey, currentSubscription, 'EX', 1800);
+      }
+      const parsedSubscription = JSON.parse(currentSubscription);
 
-    const dailyActivity = await this.prisma.image.groupBy({
-      by: ['createdAt'],
-      where: {
-        userId: id,
-        createdAt: {
-          gte: sevenDaysAgo
+      // Cards Data
+      const cards = {
+        totalImagesProcessed: parseInt(totalImagesProcessed),
+        imagesThisMonth: parseInt(imagesThisMonth),
+        subscriptionStatus: parsedSubscription ? {
+          status: parsedSubscription.status,
+          isActive: parsedSubscription.status === 'active',
+          currentPeriodEnd: parsedSubscription.currentPeriodEnd
+        } : {
+          status: 'none',
+          isActive: false,
+          currentPeriodEnd: null
+        },
+        lastMonthImagesProcessed: parseInt(lastMonthImagesProcessed)
+      };
+
+      // Report 1: Image Processing Activity (Last 30 days) - cache for 2 hours
+      const activityCacheKey = `user:${id}:activity_30days`;
+      let imageActivityData = await this.redisClient.get(activityCacheKey);
+
+      if (!imageActivityData) {
+        const rawActivityData = await this.prisma.image.groupBy({
+          by: ['createdAt'],
+          where: {
+            userId: user.id,
+            createdAt: { gte: last30Days }
+          },
+          _count: { id: true }
+        });
+        imageActivityData = JSON.stringify(rawActivityData);
+        await this.redisClient.set(activityCacheKey, imageActivityData, 'EX', 7200);
+      }
+      const parsedActivityData = JSON.parse(imageActivityData);
+
+      // Process data for daily chart (last 30 days)
+      const dailyImageActivity: Array<{ date: string; count: number }> = [];
+      for (let i = 29; i >= 0; i--) {
+        const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+        const dateStr = date.toISOString().split('T')[0];
+
+        const dayData = parsedActivityData.filter((item: any) => {
+          const itemDate = new Date(item.createdAt).toISOString().split('T')[0];
+          return itemDate === dateStr;
+        });
+
+        dailyImageActivity.push({
+          date: dateStr,
+          count: dayData.reduce((sum: number, item: any) => sum + item._count.id, 0)
+        });
+      }
+
+      // Report 2: Image Status Distribution - cache for 1 hour
+      const statusDistributionCacheKey = `user:${id}:status_distribution`;
+      let imageStatusDistribution = await this.redisClient.get(statusDistributionCacheKey);
+
+      if (!imageStatusDistribution) {
+        const rawStatusData = await this.prisma.image.groupBy({
+          by: ['status'],
+          where: { userId: user.id },
+          _count: { id: true }
+        });
+        imageStatusDistribution = JSON.stringify(rawStatusData);
+        await this.redisClient.set(statusDistributionCacheKey, imageStatusDistribution, 'EX', 3600);
+      }
+      const parsedStatusData = JSON.parse(imageStatusDistribution);
+
+      const statusDistribution = parsedStatusData.map((item: any) => ({
+        status: item.status,
+        count: item._count.id
+      }));
+
+      // Additional monthly comparison data
+      const monthlyGrowth = parseInt(lastMonthImagesProcessed) === 0 ? 100 :
+        ((parseInt(imagesThisMonth) - parseInt(lastMonthImagesProcessed)) / parseInt(lastMonthImagesProcessed)) * 100;
+
+      // Recent activity - cache for 5 minutes (most dynamic data)
+      const recentActivityCacheKey = `user:${id}:recent_activity`;
+      let recentImages = await this.redisClient.get(recentActivityCacheKey);
+
+      if (!recentImages) {
+        const rawRecentImages = await this.prisma.image.findMany({
+          where: { userId: user.id },
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+          select: {
+            id: true,
+            originalFileName: true,
+            status: true,
+            createdAt: true
+          }
+        });
+        recentImages = JSON.stringify(rawRecentImages);
+        await this.redisClient.set(recentActivityCacheKey, recentImages, 'EX', 300);
+      }
+      const parsedRecentImages = JSON.parse(recentImages);
+
+      const dashboardStats = {
+        cards,
+        reports: {
+          imageActivity: {
+            title: "Image Processing Activity (Last 30 Days)",
+            data: dailyImageActivity,
+            totalCount: dailyImageActivity.reduce((sum, item) => sum + item.count, 0)
+          },
+          statusDistribution: {
+            title: "Image Status Distribution",
+            data: statusDistribution,
+            totalImages: statusDistribution.reduce((sum, item) => sum + item.count, 0)
+          }
+        },
+        insights: {
+          monthlyGrowth: Math.round(monthlyGrowth * 100) / 100,
+          mostActiveDay: dailyImageActivity.reduce((max, day) =>
+            day.count > max.count ? day : max, { date: '', count: 0 }
+          ),
+          averageDailyProcessing: Math.round(
+            (dailyImageActivity.reduce((sum, day) => sum + day.count, 0) / 30) * 100
+          ) / 100
+        },
+        recentActivity: parsedRecentImages,
+        userInfo: {
+          joinedDate: user.createdAt,
+          accountStatus: {
+            verified: user.verified,
+            isBlocked: user.isBlocked,
+            isDeleted: user.isDeleted
+          }
         }
-      },
-      _count: { id: true }
-    });
+      };
 
-    const activeDays = dailyActivity.length;
-    const successRate = totalImages > 0 ? Math.round((successfulImages / totalImages) * 100) : 0;
+      // Cache the complete dashboard stats for 5 minutes
+      await this.redisClient.set(cacheKey, JSON.stringify(dashboardStats), 'EX', 300);
 
-    // Format status breakdown
-    const statusBreakdown = {
-      queue: 0,
-      processing: 0,
-      ready: 0
-    };
+      this.logger.log(`Dashboard stats fetched successfully for user ${user.id} and cached`);
+      return {
+        success: true,
+        message: "Dashboard stats fetched successfully",
+        data: dashboardStats
+      };
 
-    imagesByStatus.forEach(item => {
-      statusBreakdown[item.status] = item._count.status;
-    });
-
-    this.logger.log(`Dashboard stats fetched for user ${id}: ${totalImages} total images`);
-
-    return {
-      totalImages,
-      recentImages, // Last 30 days
-      imagesThisMonth,
-      successfulImages,
-      successRate, // Percentage
-      statusBreakdown,
-      storageUsedMB: Math.round(storageUsedMB * 100) / 100, // Rounded to 2 decimal places
-      activeDays, // Days with activity in last 7 days
-      accountAge: firstImage ? Math.ceil((new Date().getTime() - firstImage.createdAt.getTime()) / (1000 * 60 * 60 * 24)) : 0, // Days since first image
-      lastActivity: totalImages > 0 ? await this.prisma.image.findFirst({
-        where: { userId: id },
-        orderBy: { createdAt: 'desc' },
-        select: { createdAt: true }
-      }).then(img => img?.createdAt) : null
-    };
+    } catch (error) {
+      this.logger.error(`Error fetching dashboard stats for user ${id}: ${error.message}`);
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException("Failed to fetch dashboard statistics");
+    }
   }
 
 }

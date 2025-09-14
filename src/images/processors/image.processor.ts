@@ -115,6 +115,7 @@ export class ImageProcessor extends WorkerHost {
         await this.imageProcessorQueue.add('poll-image', {
             processId: data.id
         }, {
+            priority: 1,
             delay: 5000
         });
     }
@@ -174,9 +175,11 @@ export class ImageProcessor extends WorkerHost {
             await this.imageProcessorQueue.add(
                 'poll-image',
                 { processId: image.processId },
-                { delay: 5000 }
+                { delay: 5000, priority: 1 }
             );
         }
     }
+
+    
 
 }

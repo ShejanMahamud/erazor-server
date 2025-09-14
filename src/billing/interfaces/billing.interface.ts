@@ -25,7 +25,7 @@ export interface IBillingService {
     getInvoiceById(invoiceId: string): Promise<IGlobalRes<any>>;
 
     // Webhooks & Events
-    handleWebhookEvent(eventType: string, eventData: any, req: Request): Promise<IGlobalRes<any>>;
+    handleWebhookEvent(req: Request): Promise<IGlobalRes<any>>;
 
     // Analytics
     getRevenueAnalytics(startDate?: Date, endDate?: Date): Promise<IGlobalRes<any>>;
