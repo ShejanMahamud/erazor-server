@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { Permissions, Roles } from 'generated/prisma';
 import { PermissionsRequired } from 'src/decorators/permissions.decorator';
@@ -7,7 +7,6 @@ import { ClerkGuard } from 'src/guards/clerk.guard';
 import { PermissionsGuard } from 'src/guards/permissions.guard';
 import { RolesGuard } from 'src/guards/roles.guard';
 import { BillingService } from './billing.service';
-
 
 @Controller('billing')
 export class BillingController {
@@ -27,8 +26,8 @@ export class BillingController {
   // Checkout & Subscriptions
   @UseGuards(ClerkGuard)
   @Post('checkout/create')
-  createCheckoutSession(@Body() body: { productId: string, userId: string }) {
-    return this.billingService.createCheckoutSession(body.productId, body.userId);
+  createCheckoutSession(@Body() body: { productId: string }, @Req() req: Request) {
+    return this.billingService.createCheckoutSession(body.productId, req.user.sub);
   }
 
   @UseGuards(ClerkGuard)

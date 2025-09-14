@@ -10,12 +10,12 @@ export const RateLimitGuard = (limit = 10, ttl = 60): Type<CanActivate> => {
 
         async canActivate(ctx: ExecutionContext): Promise<boolean> {
             const req = ctx.switchToHttp().getRequest<Request>();
-            const ip = req.ip
-            // Use a combination of IP address and current minute as the key
-            const key = `rate-limit:${ip}`;
+            const userId = req.user?.sub;
+            const identifier = userId ?? req.ip;
+            const routeKey = `${req.method}:${req.path}`;
+            const key = `rate-limit:${identifier}:${routeKey}`;
             const current = await this.redisClient.incr(key);
             if (current === 1) {
-                // Set the expiration time for the key when it's first created
                 await this.redisClient.expire(key, ttl);
             }
             if (current > limit) {
