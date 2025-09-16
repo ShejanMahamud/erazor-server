@@ -235,7 +235,7 @@ export class UsersService implements IUserService {
       let totalImagesProcessed = await this.redisClient.get(totalImagesCacheKey);
       if (!totalImagesProcessed) {
         totalImagesProcessed = String(await this.prisma.image.count({
-          where: { userId: user.id, status: 'ready' }
+          where: { ownerId: user.id, status: 'ready' }
         }));
         // Cache for 10 minutes
         await this.redisClient.set(totalImagesCacheKey, totalImagesProcessed, 'EX', 600);
@@ -247,7 +247,7 @@ export class UsersService implements IUserService {
       if (!imagesThisMonth) {
         imagesThisMonth = String(await this.prisma.image.count({
           where: {
-            userId: user.id,
+            ownerId: user.id,
             status: 'ready',
             createdAt: { gte: startOfCurrentMonth }
           }
@@ -262,7 +262,7 @@ export class UsersService implements IUserService {
       if (!lastMonthImagesProcessed) {
         lastMonthImagesProcessed = String(await this.prisma.image.count({
           where: {
-            userId: user.id,
+            ownerId: user.id,
             status: 'ready',
             createdAt: {
               gte: startOfLastMonth,
@@ -312,7 +312,7 @@ export class UsersService implements IUserService {
         const rawActivityData = await this.prisma.image.groupBy({
           by: ['createdAt'],
           where: {
-            userId: user.id,
+            ownerId: user.id,
             createdAt: { gte: last30Days }
           },
           _count: { id: true }
@@ -346,7 +346,7 @@ export class UsersService implements IUserService {
       if (!imageStatusDistribution) {
         const rawStatusData = await this.prisma.image.groupBy({
           by: ['status'],
-          where: { userId: user.id },
+          where: { ownerId: user.id },
           _count: { id: true }
         });
         imageStatusDistribution = JSON.stringify(rawStatusData);
@@ -369,7 +369,7 @@ export class UsersService implements IUserService {
 
       if (!recentImages) {
         const rawRecentImages = await this.prisma.image.findMany({
-          where: { userId: user.id },
+          where: { ownerId: user.id },
           orderBy: { createdAt: 'desc' },
           take: 5,
           select: {

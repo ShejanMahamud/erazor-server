@@ -12,20 +12,23 @@ export class HasCreditGuard implements CanActivate {
         const req = context.switchToHttp().getRequest();
         const user = req.user;
         if (!user) return false;
+        if (user.sub.startsWith('anon-')) {
+            return true;
+        }
         try {
             // check redis cache first
-            const cachedCredit = await this.redisClient.get(`user:${user.id}:has_credit`);
+            const cachedCredit = await this.redisClient.get(`user:${user.sub}:has_credit`);
             if (cachedCredit) {
                 return cachedCredit === 'true';
             }
 
             // Directly check from Polar without caching
             const meter = await this.polarClient.customers.getStateExternal({
-                externalId: user.id
-            })
+                externalId: user.sub
+            });
             if (!meter) return false;
             // cache the credit status for 5 minutes
-            await this.redisClient.set(`user:${user.id}:has_credit`, meter.activeMeters.some(m => m.balance > 0 || m.creditedUnits > m.consumedUnits) ? 'true' : 'false', 'EX', 60 * 5);
+            await this.redisClient.set(`user:${user.sub}:has_credit`, meter.activeMeters.some(m => m.balance > 0 || m.creditedUnits > m.consumedUnits) ? 'true' : 'false', 'EX', 60 * 5);
             return meter.activeMeters.some(m => m.balance > 0 || m.creditedUnits > m.consumedUnits);
         }
         catch (err) {

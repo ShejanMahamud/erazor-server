@@ -13,21 +13,27 @@ export class ActiveSubscriptionGuard implements CanActivate {
         const user = req.user;
         if (!user) return false;
 
+        if (user.sub.startsWith('anon-')) {
+            return true;
+        }
+
         try {
             //check redis cache first
-            const cachedStatus = await this.redisClient.get(`user:${user.id}:has_active_subscription`);
+            const cachedStatus = await this.redisClient.get(`user:${user.sub}:has_active_subscription`);
             if (cachedStatus) {
                 return cachedStatus === 'true';
             }
             const { activeSubscriptions } = await this.polarClient.customers.getStateExternal({
-                externalId: user.id
+                externalId: user.sub
             })
             if (!activeSubscriptions) return false;
             // cache the subscription status for 5 minutes
-            await this.redisClient.set(`user:${user.id}:has_active_subscription`, activeSubscriptions[0].status === 'active' ? 'true' : 'false', 'EX', 60 * 5);
+            await this.redisClient.set(`user:${user.sub}:has_active_subscription`, activeSubscriptions[0].status === 'active' ? 'true' : 'false', 'EX', 60 * 5);
             //save user isPaid or isFree
-            await this.redisClient.set(`user:${user.id}:is_paid`, activeSubscriptions[0].amount > 0 ? 'true' : 'false', 'EX', 60 * 5);
+            await this.redisClient.set(`user:${user.sub}:is_paid`, activeSubscriptions[0].amount > 0 ? 'true' : 'false', 'EX', 60 * 5);
+
             return activeSubscriptions[0].status === 'active';
+
 
         }
         catch (err) {

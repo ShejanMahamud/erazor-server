@@ -1,12 +1,16 @@
 import { BadRequestException, Controller, DefaultValuePipe, Delete, Get, Param, ParseIntPipe, Post, Query, Req, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { randomUUID } from 'crypto';
 import type { Request } from 'express';
 import { ImageStatus, Permissions, Roles } from 'generated/prisma';
+import { diskStorage } from 'multer';
+import { extname } from 'path/win32';
+import { FileSizeLimitInterceptor } from 'src/common/interceptors/subscription-file-validation';
 import { PermissionsRequired } from 'src/decorators/permissions.decorator';
 import { RolesRequired } from 'src/decorators/roles.decorator';
 import { ClerkGuard } from 'src/guards/clerk.guard';
-import { FileSizeLimitGuard } from 'src/guards/file-size-limit.guard';
 import { HasCreditGuard } from 'src/guards/has-credit.guard';
+import { OptionalClerkGuard } from 'src/guards/optional-clerk.guard';
 import { PermissionsGuard } from 'src/guards/permissions.guard';
 import { RateLimitGuard } from 'src/guards/rate-limit.guard';
 import { RolesGuard } from 'src/guards/roles.guard';
@@ -18,11 +22,19 @@ import { ImagesService } from './images.service';
 export class ImagesController {
   constructor(private readonly imagesService: ImagesService) { }
 
-  @UseGuards(ClerkGuard, RateLimitGuard(20, 60), ActiveSubscriptionGuard, HasCreditGuard, FileSizeLimitGuard)
+  @UseGuards(OptionalClerkGuard, RateLimitGuard(20, 60, 3), ActiveSubscriptionGuard, HasCreditGuard)
   @Post('process')
   @UseInterceptors(FileInterceptor('file', {
+    storage: diskStorage({
+      destination: '/tmp', // save to /tmp
+      filename: (_, file, callback) => {
+        const uniqueName = randomUUID() + extname(file.originalname);
+        callback(null, uniqueName);
+      },
+    }),
     limits: {
-      fileSize: 20 * 1024 * 1024, //reject the request if file size > 20MB
+      fileSize: 20 * 1024 * 1024,
+      //reject the request if file size > 20MB
     },
     fileFilter: (_, file, cb) => {
       if (file.mimetype.match(/\/(jpg|jpeg|png|gif|bmp|tiff|webp)$/)) {
@@ -31,7 +43,7 @@ export class ImagesController {
         cb(new BadRequestException('Only image files are allowed!'), false);
       }
     }
-  }))
+  }), FileSizeLimitInterceptor)
   processImage(@Req() req: Request, @UploadedFile() file: Express.Multer.File) {
     return this.imagesService.processImage(req.user.sub, file);
   }

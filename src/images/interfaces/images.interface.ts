@@ -3,7 +3,7 @@ import { IGlobalMeta, IGlobalRes } from "src/types";
 
 export interface IImage {
     id: string;
-    userId: string;
+    ownerId: string | null;
     processId: string;
     originalFileName: string;
     originalImageUrlLQ: string | null;
@@ -17,7 +17,7 @@ export interface IImage {
 }
 
 export interface IImageService {
-    processImage(userId: string, file: Express.Multer.File): Promise<IGlobalRes<IImage | null>>;
+    processImage(userId: string, file: Express.Multer.File): Promise<IGlobalRes<IImage | { anonId?: string | null } | null>>;
     deleteImage(id: string): Promise<IGlobalRes<boolean>>;
     findAllImagesByUserId(userId: string, limit: number, cursor?: string, search?: string, status?: ImageStatus): Promise<IGlobalRes<IImage[], IGlobalMeta>>;
     findAllImages(limit: number, cursor?: string, search?: string, status?: ImageStatus): Promise<IGlobalRes<IImage[], IGlobalMeta>>;

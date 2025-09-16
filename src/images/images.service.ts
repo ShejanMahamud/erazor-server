@@ -11,27 +11,38 @@ export class ImagesService implements IImageService {
   private readonly logger = new Logger(ImagesService.name);
   constructor(@InjectQueue('image-processor') private readonly imageProcessorQueue: Queue, private readonly prisma: PrismaService) { }
 
-  async processImage(userId: string, file: Express.Multer.File): Promise<IGlobalRes<null>> {
+
+  async processImage(userId: string, file: Express.Multer.File): Promise<IGlobalRes<{ anonId?: string | null }>> {
     this.logger.log(`Processing image for user ${userId}`);
 
-    const serializableFile = {
-      originalname: file.originalname,
-      mimetype: file.mimetype,
-      size: file.size,
-      buffer: file.buffer.toString('base64'),
-      filename: file.filename
-    };
-    this.logger.log(`Adding image processing job for user ${userId} to the queue`);
+    try {
+      // Prepare job data with file metadata and temp path
+      const jobData = {
+        userId,
+        file: {
+          originalname: file.originalname,
+          mimetype: file.mimetype,
+          size: file.size,
+          tempFilePath: file.path,
+          filename: file.filename
+        }
+      };
 
-    await this.imageProcessorQueue.add('process-image', {
-      userId,
-      file: serializableFile
-    });
-    this.logger.log(`Image processing job for user ${userId} added to the queue`);
+      this.logger.log(`Adding image processing job for user ${userId} to the queue`);
 
-    return {
-      success: true,
-      message: "Image processing started"
+      await this.imageProcessorQueue.add('process-image', jobData);
+      this.logger.log(`Image processing job for user ${userId} added to the queue`);
+
+      return {
+        success: true,
+        message: "Image processing started",
+        data: {
+          ...(userId.startsWith('anon-') && { anonId: userId || null }),
+        }
+      }
+    } catch (error) {
+      this.logger.error(`Failed to process image for user ${userId}: ${error.message}`, error.stack);
+      throw error;
     }
   }
 
@@ -39,7 +50,7 @@ export class ImagesService implements IImageService {
     this.logger.log(`Finding images for user ${userId} with limit ${limit} and cursor ${cursor}`);
     const images = await this.prisma.image.findMany({
       where: {
-        userId,
+        ownerId: userId,
         ...(status && {
           status: status
         }),

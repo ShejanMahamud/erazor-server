@@ -4,13 +4,15 @@ import { ConfigService } from "@nestjs/config";
 import { Polar } from "@polar-sh/sdk";
 import axios from "axios";
 import { Job } from "bullmq";
+import { createReadStream } from 'fs';
+import * as fs from 'fs/promises';
 import Redis from "ioredis";
 import { NotificationGateway } from "src/notification/notification.gateway";
 import { PrismaService } from "src/prisma/prisma.service";
 import { REDIS_CLIENT } from "src/queue/queue.module";
 import { ImageGateway } from "../image.gateway";
 import FormData = require("form-data");
-type PollImagePayload = { processId: string };
+type PollImagePayload = { processId: string, userId: string };
 @Processor('image-processor')
 export class ImageProcessor extends WorkerHost {
     constructor(private readonly config: ConfigService, private readonly prisma: PrismaService, @InjectQueue('image-processor') private readonly imageProcessorQueue, private readonly imageGateway: ImageGateway, @Inject('POLAR_CLIENT') private readonly polarClient: Polar, private readonly notificationGateway: NotificationGateway, @Inject(REDIS_CLIENT) private readonly redisClient: Redis) {
@@ -23,18 +25,36 @@ export class ImageProcessor extends WorkerHost {
             originalname: string;
             mimetype: string;
             size: number;
-            buffer: string;
+            tempFilePath: string;
             filename?: string;
         };
         processId?: string
     }>): Promise<any> {
-        switch (job.name) {
-            case 'process-image':
-                await this.handleImageCreateOnDB(job);
-                break;
-            case 'poll-image':
-                await this.handleImagePoll(job as Job<PollImagePayload>);
-                break;
+        try {
+            switch (job.name) {
+                case 'process-image':
+                    await this.handleImageCreateOnDB(job);
+                    break;
+                case 'poll-image':
+                    await this.handleImagePoll(job as Job<PollImagePayload>);
+                    break;
+            }
+        } catch (error) {
+            // Clean up temp file if job fails and file still exists
+            if (job.name === 'process-image' && job.data.file?.tempFilePath) {
+                try {
+                    // Check if file exists before trying to delete it
+                    await fs.access(job.data.file.tempFilePath);
+                    await fs.unlink(job.data.file.tempFilePath);
+                    console.log(`Cleaned up temp file after job failure: ${job.data.file.tempFilePath}`);
+                } catch (unlinkError) {
+                    // Only log error if it's not a "file not found" error
+                    if (unlinkError.code !== 'ENOENT') {
+                        console.error(`Failed to clean up temp file after job failure ${job.data.file.tempFilePath}:`, unlinkError);
+                    }
+                }
+            }
+            throw error;
         }
     }
 
@@ -51,28 +71,50 @@ export class ImageProcessor extends WorkerHost {
             originalname: string;
             mimetype: string;
             size: number;
-            buffer: string;
+            tempFilePath: string;
             filename?: string;
         };
     }>): Promise<any> {
-        const fileBuffer = Buffer.from(job.data.file.buffer, 'base64');
+        // Check if temp file exists
+        try {
+            await fs.access(job.data.file.tempFilePath);
+        } catch (error) {
+            throw new Error(`Temp file not found: ${job.data.file.tempFilePath}`);
+        }
 
         const formData = new FormData();
-        formData.append('image', fileBuffer, {
+
+        // Create a read stream from the temp file
+        const fileStream = createReadStream(job.data.file.tempFilePath);
+
+        formData.append('image', fileStream, {
             filename: job.data.file.originalname,
             contentType: job.data.file.mimetype
         });
 
-        const { data } = await axios.post(
-            `${this.config.get<string>('IMAGE_PROCESSOR_URL')}/process_image?token=${this.config.get<string>('IMAGE_PROCESSOR_API_KEY')}`,
-            formData,
-            {
-                headers: {
-                    ...formData.getHeaders(),
+        try {
+            const { data } = await axios.post(
+                `${this.config.get<string>('IMAGE_PROCESSOR_URL')}/process_image?token=${this.config.get<string>('IMAGE_PROCESSOR_API_KEY')}`,
+                formData,
+                {
+                    headers: {
+                        ...formData.getHeaders(),
+                    },
+                    timeout: 60000,
+                    maxContentLength: Infinity,
+                    maxBodyLength: Infinity
                 }
+            );
+            return data;
+        } finally {
+            // Clean up the temporary file after processing
+            try {
+                await fs.unlink(job.data.file.tempFilePath);
+                console.log(`Successfully deleted temp file: ${job.data.file.tempFilePath}`);
+            } catch (error) {
+                console.error(`Failed to delete temp file ${job.data.file.tempFilePath}:`, error);
             }
-        );
-        return data
+        }
     }
 
     async findAllQueuedImages(): Promise<any[]> {
@@ -93,51 +135,59 @@ export class ImageProcessor extends WorkerHost {
             originalname: string;
             mimetype: string;
             size: number;
-            buffer: string;
+            tempFilePath: string;
             filename?: string;
         };
     }>): Promise<void> {
+        const anonUser = job.data.userId.startsWith('anon-')
         const data = await this.handleImageProcessing(job);
-        await this.prisma.image.create({
+        const image = await this.prisma.image.create({
             data: {
-                userId: job.data.userId,
+                ownerId: anonUser ? null : job.data.userId,
                 processId: data.id,
                 originalFileName: job.data.file.originalname,
                 status: data.statusName,
                 originalImageUrlHQ: data.source.url,
             }
         });
-        await this.notificationGateway.sendNotification({
-            userId: job.data.userId,
-            type: 'INFO',
-            message: `Your image ${job.data.file.originalname} is being processed.`,
-        })
+        console.log("Image data here", image);
+        if (!anonUser) {
+            await this.notificationGateway.sendNotification({
+                userId: job.data.userId,
+                type: 'INFO',
+                message: `Your image ${job.data.file.originalname} is being processed.`,
+            })
+        }
         await this.imageProcessorQueue.add('poll-image', {
-            processId: data.id
+            processId: data.id,
+            userId: job.data.userId
         }, {
             priority: 1,
             delay: 5000
         });
     }
 
-    async handleImagePoll(job: Job<{ processId: string }>): Promise<void> {
+    async handleImagePoll(job: Job<{ processId: string, userId: string }>): Promise<void> {
+        console.log("Polling job data:", { processId: job.data.processId, userId: job.data.userId });
         const image = await this.prisma.image.findUnique({
             where: { processId: job.data.processId },
         });
-
+        console.log("Polling image status for processId:", job.data.processId, "Image found:", !!image);
         if (!image) {
             throw new Error(`Image not found for processId ${job.data.processId}`);
         }
 
         const result = await this.findImageByProcessId(image.processId);
-
-        let isPaid = await this.redisClient.get(`user:${image.userId}:is_paid`);
-        if (isPaid === null) {
-            const customer = await this.polarClient.customers.getStateExternal({ externalId: image.userId });
-            isPaid = customer.activeSubscriptions?.[0]?.amount > 0 ? 'true' : 'false';
-            await this.redisClient.set(`user:${image.userId}:is_paid`, isPaid, 'EX', 300);
+        let freeUser = true;
+        if (image.ownerId) {
+            let isPaid = await this.redisClient.get(`user:${image.ownerId}:is_paid`);
+            if (isPaid === null) {
+                const customer = await this.polarClient.customers.getStateExternal({ externalId: image.ownerId });
+                isPaid = customer.activeSubscriptions?.[0]?.amount > 0 ? 'true' : 'false';
+                await this.redisClient.set(`user:${image.ownerId}:is_paid`, isPaid, 'EX', 300);
+            }
+            freeUser = isPaid === 'false';
         }
-        const freeUser = isPaid === 'false';
 
 
         if (result.data.statusName === 'ready') {
@@ -146,40 +196,49 @@ export class ImageProcessor extends WorkerHost {
                 data: {
                     status: 'ready',
                     originalImageUrlLQ: result.data.source?.thumb2x_url || null,
-                    bgRemovedFileName: `erazor_bg_rmv${image.userId}.png`,
+                    bgRemovedFileName: `erazor_${image.id}.png`,
                     ...(freeUser && { bgRemovedImageUrlLQ: result.data.processed?.thumb2x_url || null }),
                     ...(!freeUser && { bgRemovedImageUrlHQ: result.data.processed?.url || null }),
                 },
             });
-            await this.polarClient.events.ingest({
-                events: [{
-                    name: "bg_remove",
-                    externalCustomerId: image.userId,
-                    metadata: {
-                        operations: 1,
-                        image_id: updatedImage.processId,
-                        timestamp: new Date().toISOString()
-                    }
-                }]
-            });
-            await this.notificationGateway.sendNotification({
-                userId: image.userId,
-                type: 'INFO',
-                message: `Your image ${image.originalFileName} is being processed.`,
-            })
-            this.imageGateway.sendImageUpdate(updatedImage.userId, updatedImage);
+            if (image.ownerId) {
+                await this.polarClient.events.ingest({
+                    events: [{
+                        name: "bg_remove",
+                        externalCustomerId: image.ownerId,
+                        metadata: {
+                            operations: 1,
+                            image_id: updatedImage.processId,
+                            timestamp: new Date().toISOString()
+                        }
+                    }]
+                });
+                await this.notificationGateway.sendNotification({
+                    userId: image.ownerId,
+                    type: 'INFO',
+                    message: `Your image ${image.originalFileName} is being processed.`,
+                })
+            }
+            console.log(updatedImage)
+            // Send WebSocket update - use job.data.userId for anonymous users, image.ownerId for registered users
+            const targetUserId = job.data.userId || image.ownerId;
+            if (targetUserId) {
+                this.imageGateway.sendImageUpdate(targetUserId, updatedImage);
+            } else {
+                console.warn('No valid userId found for WebSocket update. Job userId:', job.data.userId, 'Image ownerId:', image.ownerId);
+            }
         } else if (
             result.data.statusName === 'processing' ||
             result.data.statusName === 'queue'
         ) {
             await this.imageProcessorQueue.add(
                 'poll-image',
-                { processId: image.processId },
+                { processId: image.processId, userId: job.data.userId },
                 { delay: 5000, priority: 1 }
             );
         }
     }
 
-    
+
 
 }

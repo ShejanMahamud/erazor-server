@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as bodyParser from 'body-parser';
 import cookieParser from 'cookie-parser';
+import { writeFileSync } from 'fs';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/all-exception.filter';
@@ -73,7 +74,11 @@ async function bootstrap() {
     .setVersion('1.0')
     .addBearerAuth()
     .build();
+  const document = SwaggerModule.createDocument(app, config);
+
   const documentFactory = () => SwaggerModule.createDocument(app, config);
+  writeFileSync('./openapi.json', JSON.stringify(document, null, 2));
+
   SwaggerModule.setup('/v1/api/docs', app, documentFactory);
 
   await app.listen(process.env.PORT ?? 3000, '0.0.0.0');
