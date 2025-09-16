@@ -303,12 +303,12 @@ export class AdminService implements IAdminService {
 
     // This would typically involve session/login data
     // For now, we'll use users who had activity (created images) in the last 7 days
-    const activeUsers = await this.prisma.image.findMany({
+    const activeUsers = await this.prisma.user.findMany({
       where: {
         createdAt: { gte: last7Days }
       },
-      select: { userId: true },
-      distinct: ['userId']
+      select: { id: true },
+      distinct: ['id']
     });
 
     const count = activeUsers.length;

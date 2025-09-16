@@ -13,10 +13,12 @@ export class ImageGateway implements OnGatewayInit {
 
     @SubscribeMessage('join')
     handleJoin(@MessageBody() userId: string, @ConnectedSocket() client: Socket) {
+        this.logger.log(`User ${userId} joined their room`);
         client.join(userId);
     }
 
     sendImageUpdate(userId: string, updateData: any) {
+        console.log('Sending image update to user:', userId, updateData);
         this.server.to(userId).emit(`image-status-update`, updateData);
     }
 }

@@ -1,31 +1,45 @@
-import { BadRequestException, CanActivate, ExecutionContext, Inject, Injectable } from "@nestjs/common";
+import { BadRequestException, CallHandler, ExecutionContext, Inject, Injectable, NestInterceptor } from "@nestjs/common";
 import { Polar } from "@polar-sh/sdk";
 import Redis from "ioredis";
+import { Observable } from "rxjs";
 import { REDIS_CLIENT } from "src/queue/queue.module";
 
 @Injectable()
-export class FileSizeLimitGuard implements CanActivate {
+export class FileSizeLimitInterceptor implements NestInterceptor {
     constructor(@Inject('POLAR_CLIENT') private readonly polarClient: Polar, @Inject(REDIS_CLIENT) private readonly redisClient: Redis) { }
-    async canActivate(context: ExecutionContext): Promise<boolean> {
+    async intercept(context: ExecutionContext, next: CallHandler): Promise<Observable<any>> {
         const req = context.switchToHttp().getRequest();
         const file = req.file;
-        if (!file) return false;
+
+        if (!file) return next.handle();
+
+        if (req.user?.sub?.startsWith('anon-')) {
+            const MAX_FILE_SIZE = 2;
+            const sizeInMB = req.file.size / (1024 * 1024);
+            if (sizeInMB > MAX_FILE_SIZE) {
+                throw new BadRequestException(
+                    `File size exceeds the limit of ${MAX_FILE_SIZE / (1024 * 1024)}MB.`
+                );
+            }
+            return next.handle();
+        }
 
         try {
             //check the customer max_upload_size if exists in redis cache
-            const cachedLimit = await this.redisClient.get(`user:${req.user.id}:file_size_limit`);
+            const cachedLimit = await this.redisClient.get(`user:${req.user.sub}:file_size_limit`);
             if (cachedLimit) {
                 const MAX_FILE_SIZE = parseInt(cachedLimit);
-                if (file.size > MAX_FILE_SIZE) {
+                const sizeInMB = req.file.size / (1024 * 1024);
+                if (sizeInMB > MAX_FILE_SIZE) {
                     throw new BadRequestException(
                         `File size exceeds the limit of ${MAX_FILE_SIZE / (1024 * 1024)}MB.`
                     );
                 }
-                return true;
+                return next.handle();
             }
             // Check if customer exists
             const customer = await this.polarClient.customers.getStateExternal({
-                externalId: req.user.id,
+                externalId: req.user.sub,
             })
             // Check if customer has active subscriptions
             if (!customer.activeSubscriptions || customer.activeSubscriptions.length === 0) {
@@ -40,13 +54,15 @@ export class FileSizeLimitGuard implements CanActivate {
                 throw new BadRequestException('File size limit not configured for this plan');
             }
             const MAX_FILE_SIZE = parseInt(product.metadata?.file_size_limit as string);
-            //set max_file_size in redis cache
-            await this.redisClient.set(`user:${req.user.id}:file_size_limit`, MAX_FILE_SIZE, 'EX', 60 * 5);
 
-            if (file.size > MAX_FILE_SIZE) {
+            //set max_file_size in redis cache
+            await this.redisClient.set(`user:${req.user.sub}:file_size_limit`, MAX_FILE_SIZE, 'EX', 60 * 5);
+            const sizeInMB = req.file.size / (1024 * 1024);
+            if (sizeInMB > MAX_FILE_SIZE) {
                 throw new BadRequestException(`File size exceeds the limit of ${MAX_FILE_SIZE / (1024 * 1024)}MB.`);
             }
-            return true;
+
+            return next.handle();
         }
         catch (err) {
             if (err instanceof BadRequestException) {
