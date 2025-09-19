@@ -75,8 +75,8 @@ export class OptionalClerkGuard implements CanActivate {
         res.cookie('anon_id', anonId, {
             httpOnly: true,
             maxAge: 365 * 24 * 60 * 60 * 1000,
-            sameSite: 'none',
-            secure: true,
+            sameSite: 'lax',
+            secure: process.env.NODE_ENV === 'production',
         });
 
         return anonId;
