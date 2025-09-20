@@ -34,7 +34,7 @@ model User {
 
 model Image {
   id                  String      @id @default(uuid())
-  ownerId             String
+  ownerId             String?
   processId           String      @unique
   originalFileName    String
   originalImageUrlLQ  String?
