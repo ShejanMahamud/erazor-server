@@ -1,0 +1,49 @@
+name: CI/CD Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        run: npm install -g pnpm
+
+      - name: Install dependencies
+        run: pnpm i
+
+      - name: Build project
+        run: pnpm build
+
+      - name: Copy to server
+        uses: appleboy/scp-action@master
+        with:
+          host: 20.40.57.36
+          username: johuniq
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: '.'
+          target: '/home/johuniq/erazor-server'
+
+      - name: Restart PM2
+        uses: appleboy/ssh-action@master
+        with:
+          host: 20.40.57.36
+          username: deploy
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /home/johuniq/erazor-server
+            pnpm install
+            pnpm run build
+            pm2 reload ecosystem.config.js
