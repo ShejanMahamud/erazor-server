@@ -42,6 +42,18 @@ jobs:
           source: '.'
           target: '/home/johuniq/erazor-server'
 
+      - name: Run Prisma migrations on server
+        uses: appleboy/ssh-action@master
+        with:
+          host: 20.40.57.36
+          username: johuniq
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /home/johuniq/erazor-server
+            pnpm install
+            pnpm prisma migrate deploy
+            pm2 reload ecosystem.config.js
+
       - name: Restart PM2
         uses: appleboy/ssh-action@master
         with:
