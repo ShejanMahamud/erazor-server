@@ -27,9 +27,6 @@ jobs:
       - name: Generate Prisma client
         run: pnpm prisma generate
 
-      - name: Migrate database
-        run: pnpm prisma migrate deploy
-
       - name: Build project
         run: pnpm build
 
