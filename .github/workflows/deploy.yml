@@ -38,6 +38,12 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           source: '.'
           target: '/home/johuniq/erazor-server'
+          strip_components: 1
+          exclude: |
+            erazor-server/uptime-kuma/kuma.db
+            erazor-server/uptime-kuma/screenshots
+            erazor-server/uptime-kuma/upload
+            erazor-server/uptime-kuma/error.log
 
       - name: Run Prisma migrations on server
         uses: appleboy/ssh-action@master
