@@ -13,6 +13,7 @@ export class ActiveSubscriptionGuard implements CanActivate {
         const user = req.user;
         if (!user) return false;
 
+        console.log('Checking subscription status for user:', user);
 
         if (user.sub.startsWith('anon-')) {
             return true;
