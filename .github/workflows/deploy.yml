@@ -46,10 +46,11 @@ jobs:
           username: johuniq
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            export PATH=$HOME/.nvm/versions/node/v22.19.0/bin:$PATH
             cd /home/johuniq/erazor-server
-            /home/johuniq/.nvm/versions/node/v22.19.0/bin/pnpm install
-            /home/johuniq/.nvm/versions/node/v22.19.0/bin/pnpm prisma migrate deploy
-            /home/johuniq/.nvm/versions/node/v22.19.0/bin/pm2 reload ecosystem.config.js
+            pnpm install
+            pnpm prisma migrate deploy
+            pm2 reload ecosystem.config.js
 
       - name: Restart PM2
         uses: appleboy/ssh-action@master
@@ -58,7 +59,8 @@ jobs:
           username: johuniq
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            export PATH=$HOME/.nvm/versions/node/v22.19.0/bin:$PATH
             cd /home/johuniq/erazor-server
-            /home/johuniq/.nvm/versions/node/v22.19.0/bin/pnpm install
-            /home/johuniq/.nvm/versions/node/v22.19.0/bin/pnpm prisma migrate deploy
-            /home/johuniq/.nvm/versions/node/v22.19.0/bin/pm2 reload ecosystem.config.js
+            pnpm install
+            pnpm prisma migrate deploy
+            pm2 reload ecosystem.config.js
