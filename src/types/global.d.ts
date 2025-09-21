@@ -21,6 +21,8 @@ declare global {
                 sts: string;
                 sub: string;
                 v: number;
+                isPaid?: boolean;
+                freeUser?: boolean;
             };
         }
     }

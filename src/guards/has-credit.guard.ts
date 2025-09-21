@@ -17,6 +17,9 @@ export class HasCreditGuard implements CanActivate {
         if (user.sub.startsWith('anon-')) {
             return true;
         }
+        if (user.freeUser) {
+            return true;
+        }
         try {
             // check redis cache first
             const cachedCredit = await this.redisClient.get(`user:${user.sub}:has_credit`);
