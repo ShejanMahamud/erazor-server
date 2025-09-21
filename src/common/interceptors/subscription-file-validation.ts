@@ -13,7 +13,7 @@ export class FileSizeLimitInterceptor implements NestInterceptor {
 
         if (!file) return next.handle();
 
-        if (req.user?.sub?.startsWith('anon-')) {
+        if (req.user?.sub?.startsWith('anon-') || req.user.freeUser) {
             const MAX_FILE_SIZE = 2;
             const sizeInMB = req.file.size / (1024 * 1024);
             if (sizeInMB > MAX_FILE_SIZE) {
