@@ -10,8 +10,8 @@ import { Polar } from '@polar-sh/sdk';
             useFactory: (config: ConfigService) => {
                 return new Polar({
                     accessToken: config.get<string>('POLAR_ACCESS_TOKEN'),
-                    
-                    server: 'sandbox',
+
+                    server: 'production',
                 });
             },
             inject: [ConfigService],
