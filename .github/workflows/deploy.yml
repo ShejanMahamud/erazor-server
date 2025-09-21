@@ -56,7 +56,7 @@ jobs:
             cd /home/johuniq/erazor-server
             pnpm install
             pnpm prisma migrate deploy
-            pm2 reload ecosystem.config.js
+            pm2 reload ecosystem.config.js --update-env
 
       - name: Restart PM2
         uses: appleboy/ssh-action@master
@@ -69,4 +69,4 @@ jobs:
             cd /home/johuniq/erazor-server
             pnpm install
             pnpm prisma migrate deploy
-            pm2 reload ecosystem.config.js
+            pm2 reload ecosystem.config.js --update-env

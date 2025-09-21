@@ -14,6 +14,7 @@ export class ImagesService implements IImageService {
 
   async processImage(userId: string, file: Express.Multer.File): Promise<IGlobalRes<{ anonId?: string | null }>> {
     this.logger.log(`Processing image for user ${userId}`);
+    this.logger.log(`User ID starts with 'anon-': ${userId.startsWith('anon-')}`);
 
     try {
       // Prepare job data with file metadata and temp path

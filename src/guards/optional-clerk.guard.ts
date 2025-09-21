@@ -4,6 +4,7 @@ import {
     ExecutionContext,
     Inject,
     Injectable,
+    Logger,
 } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { Request, Response } from 'express';
@@ -11,6 +12,8 @@ import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class OptionalClerkGuard implements CanActivate {
+    private readonly logger = new Logger(OptionalClerkGuard.name);
+
     constructor(
         @Inject('CLERK_CLIENT') private readonly clerkClient: ClerkClient,
     ) { }
@@ -32,6 +35,16 @@ export class OptionalClerkGuard implements CanActivate {
         };
 
         try {
+            // Check if Authorization header exists first
+            const authHeader = req.headers.authorization;
+            if (!authHeader || !authHeader.startsWith('Bearer ')) {
+                this.logger.debug('No valid authorization header found, using anonymous user');
+                req['user'] = { sub: this.generateAnonymousId(req, res) };
+                return true;
+            }
+
+            this.logger.debug('Attempting Clerk authentication...');
+
             // Authenticate with Clerk
             const { token } =
                 await this.clerkClient.authenticateRequest(clerkRequest as any);
@@ -41,9 +54,14 @@ export class OptionalClerkGuard implements CanActivate {
                     secretKey: process.env.CLERK_SECRET_KEY,
                 });
                 req['user'] = { ...payload };
+                this.logger.debug(`Clerk authentication successful for user: ${payload.sub}`);
                 return true;
+            } else {
+                this.logger.warn('Clerk authentication returned no token, falling back to anonymous user');
             }
         } catch (err) {
+            this.logger.error(`Clerk authentication failed: ${err.message}`, err.stack);
+            this.logger.warn('Falling back to anonymous user due to authentication error');
         }
 
         // Fallback: Anonymous user
