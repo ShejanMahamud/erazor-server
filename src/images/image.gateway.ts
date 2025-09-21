@@ -18,7 +18,6 @@ export class ImageGateway implements OnGatewayInit {
     }
 
     sendImageUpdate(userId: string, updateData: any) {
-        console.log('Sending image update to user:', userId, updateData);
         this.server.to(userId).emit(`image-status-update`, updateData);
     }
 }

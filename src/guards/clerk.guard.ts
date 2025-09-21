@@ -27,18 +27,15 @@ export class ClerkGuard implements CanActivate {
             method: req.method,
             headers: req.headers,
         };
-        console.log('Clerk request:', clerkRequest);
         const { token } = await this.clerkClient.authenticateRequest(
             clerkRequest as any,
         );
-        console.log('Clerk token:', token);
         if (!token) {
             return false;
         }
         const payload = await verifyToken(token, {
             secretKey: process.env.CLERK_SECRET_KEY,
         });
-        console.log('Clerk payload:', payload);
         req['user'] = { ...payload };
         return true;
     }

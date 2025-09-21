@@ -46,7 +46,6 @@ export class ImageProcessor extends WorkerHost {
                     // Check if file exists before trying to delete it
                     await fs.access(job.data.file.tempFilePath);
                     await fs.unlink(job.data.file.tempFilePath);
-                    console.log(`Cleaned up temp file after job failure: ${job.data.file.tempFilePath}`);
                 } catch (unlinkError) {
                     // Only log error if it's not a "file not found" error
                     if (unlinkError.code !== 'ENOENT') {
@@ -110,7 +109,6 @@ export class ImageProcessor extends WorkerHost {
             // Clean up the temporary file after processing
             try {
                 await fs.unlink(job.data.file.tempFilePath);
-                console.log(`Successfully deleted temp file: ${job.data.file.tempFilePath}`);
             } catch (error) {
                 console.error(`Failed to delete temp file ${job.data.file.tempFilePath}:`, error);
             }
@@ -150,7 +148,6 @@ export class ImageProcessor extends WorkerHost {
                 originalImageUrlHQ: data.source.url,
             }
         });
-        console.log("Image data here", image);
         if (!anonUser) {
             await this.notificationGateway.sendNotification({
                 userId: job.data.userId,
@@ -168,11 +165,9 @@ export class ImageProcessor extends WorkerHost {
     }
 
     async handleImagePoll(job: Job<{ processId: string, userId: string }>): Promise<void> {
-        console.log("Polling job data:", { processId: job.data.processId, userId: job.data.userId });
         const image = await this.prisma.image.findUnique({
             where: { processId: job.data.processId },
         });
-        console.log("Polling image status for processId:", job.data.processId, "Image found:", !!image);
         if (!image) {
             throw new Error(`Image not found for processId ${job.data.processId}`);
         }
@@ -219,7 +214,6 @@ export class ImageProcessor extends WorkerHost {
                     message: `Your image ${image.originalFileName} is being processed.`,
                 })
             }
-            console.log(updatedImage)
             // Send WebSocket update - use job.data.userId for anonymous users, image.ownerId for registered users
             const targetUserId = job.data.userId || image.ownerId;
             if (targetUserId) {

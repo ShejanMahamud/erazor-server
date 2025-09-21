@@ -10,7 +10,6 @@ export class ActiveSubscriptionGuard implements CanActivate {
     }
     async canActivate(context: ExecutionContext): Promise<boolean> {
         const req = context.switchToHttp().getRequest();
-        console.log("user in req", req['user'])
         const user = req.user;
         if (!user) return false;
 
