@@ -37,7 +37,8 @@ export class ActiveSubscriptionGuard implements CanActivate {
 
         }
         catch (err) {
-            throw new BadRequestException(err.message || 'Failed to validate subscription status');
+            console.error('Polar API error in ActiveSubscriptionGuard:', err);
+            throw new BadRequestException(`Failed to validate subscription status: ${err.message || err}`);
         }
     }
 }
