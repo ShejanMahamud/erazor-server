@@ -55,16 +55,26 @@ export class OptionalClerkGuard implements CanActivate {
                 const payload = await verifyToken(token, {
                     secretKey: process.env.CLERK_SECRET_KEY,
                 });
-                const subscription = await this.polarClient.customers.getStateExternal({
-                    externalId: payload.sub,
-                });
-                if (subscription.activeSubscriptions?.length) {
-                    req['user']['isPaid'] = subscription.activeSubscriptions[0].amount > 0;
-                } else {
-                    req['user']['freeUser'] = true;
-                }
+
+                // Set user data first - this is the core authentication
                 req['user'] = { ...payload };
                 this.logger.debug(`Clerk authentication successful for user: ${payload.sub}`);
+
+                // Try to get subscription info, but don't fail auth if it errors
+                try {
+                    const subscription = await this.polarClient.customers.getStateExternal({
+                        externalId: payload.sub,
+                    });
+                    if (subscription.activeSubscriptions?.length) {
+                        req['user']['isPaid'] = subscription.activeSubscriptions[0].amount > 0;
+                    } else {
+                        req['user']['freeUser'] = true;
+                    }
+                } catch (subscriptionError) {
+                    this.logger.warn(`Failed to fetch subscription data for user ${payload.sub}: ${subscriptionError.message}`);
+                    // Default to free user if subscription check fails
+                    req['user']['freeUser'] = true;
+                }
 
                 return true;
             } else {
