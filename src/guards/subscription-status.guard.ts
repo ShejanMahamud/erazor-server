@@ -10,13 +10,14 @@ export class ActiveSubscriptionGuard implements CanActivate {
     }
     async canActivate(context: ExecutionContext): Promise<boolean> {
         const req = context.switchToHttp().getRequest();
+        console.log("user in req", req['user'])
         const user = req.user;
         if (!user) return false;
+
 
         if (user.sub.startsWith('anon-')) {
             return true;
         }
-
         try {
             //check redis cache first
             const cachedStatus = await this.redisClient.get(`user:${user.sub}:has_active_subscription`);
@@ -31,7 +32,6 @@ export class ActiveSubscriptionGuard implements CanActivate {
             await this.redisClient.set(`user:${user.sub}:has_active_subscription`, activeSubscriptions[0].status === 'active' ? 'true' : 'false', 'EX', 60 * 5);
             //save user isPaid or isFree
             await this.redisClient.set(`user:${user.sub}:is_paid`, activeSubscriptions[0].amount > 0 ? 'true' : 'false', 'EX', 60 * 5);
-
             return activeSubscriptions[0].status === 'active';
 
 
