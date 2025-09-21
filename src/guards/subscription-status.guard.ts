@@ -10,12 +10,15 @@ export class ActiveSubscriptionGuard implements CanActivate {
     }
     async canActivate(context: ExecutionContext): Promise<boolean> {
         const req = context.switchToHttp().getRequest();
-        console.log("user in req", req['user'])
         const user = req.user;
         if (!user) return false;
 
+        console.log('Checking subscription status for user:', user);
 
         if (user.sub.startsWith('anon-')) {
+            return true;
+        }
+        if (user.freeUser) {
             return true;
         }
         try {

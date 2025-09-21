@@ -126,8 +126,6 @@ export class ImagesController {
     }
   }), FileSizeLimitInterceptor)
   processImage(@Req() req: Request, @UploadedFile() file: Express.Multer.File) {
-    console.log("Controller - req.user:", req.user);
-    console.log("Controller - req.user.sub:", req.user?.sub);
     return this.imagesService.processImage(req.user.sub, file);
   }
 

@@ -6,6 +6,7 @@ import {
     Injectable,
     Logger,
 } from '@nestjs/common';
+import { Polar } from '@polar-sh/sdk';
 import { createHash } from 'crypto';
 import { Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
@@ -16,6 +17,7 @@ export class OptionalClerkGuard implements CanActivate {
 
     constructor(
         @Inject('CLERK_CLIENT') private readonly clerkClient: ClerkClient,
+        @Inject('POLAR_CLIENT') private readonly polarClient: Polar,
     ) { }
 
     async canActivate(ctx: ExecutionContext): Promise<boolean> {
@@ -53,8 +55,17 @@ export class OptionalClerkGuard implements CanActivate {
                 const payload = await verifyToken(token, {
                     secretKey: process.env.CLERK_SECRET_KEY,
                 });
+                const subscription = await this.polarClient.customers.getStateExternal({
+                    externalId: payload.sub,
+                });
+                if (subscription.activeSubscriptions?.length) {
+                    req['user']['isPaid'] = subscription.activeSubscriptions[0].amount > 0;
+                } else {
+                    req['user']['freeUser'] = true;
+                }
                 req['user'] = { ...payload };
                 this.logger.debug(`Clerk authentication successful for user: ${payload.sub}`);
+
                 return true;
             } else {
                 this.logger.warn('Clerk authentication returned no token, falling back to anonymous user');
