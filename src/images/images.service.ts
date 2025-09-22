@@ -31,7 +31,17 @@ export class ImagesService implements IImageService {
 
       this.logger.log(`Adding image processing job for user ${userId} to the queue`);
 
-      await this.imageProcessorQueue.add('process-image', jobData);
+      // Add job with retry logic for Redis connection issues
+      await this.imageProcessorQueue.add('process-image', jobData, {
+        attempts: 3,
+        backoff: {
+          delay: 2000,
+          type: 'exponential',
+        },
+        removeOnComplete: 10,
+        removeOnFail: 5,
+      });
+
       this.logger.log(`Image processing job for user ${userId} added to the queue`);
 
       return {
@@ -43,6 +53,12 @@ export class ImagesService implements IImageService {
       }
     } catch (error) {
       this.logger.error(`Failed to process image for user ${userId}: ${error.message}`, error.stack);
+
+      // Handle specific Redis/Queue errors
+      if (error.message.includes('Redis') || error.message.includes('Queue') || error.message.includes('Stream')) {
+        throw new Error('Image processing service is temporarily unavailable. Please try again in a moment.');
+      }
+
       throw error;
     }
   }

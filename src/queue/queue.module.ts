@@ -13,10 +13,11 @@ const getBullMQRedisConfig = (config: ConfigService) => ({
     port: config.get<number>('REDIS_PORT') as number,
     maxRetriesPerRequest: null, // Required by BullMQ
     retryDelayOnFailover: 100,
-    lazyConnect: true,
+    lazyConnect: false, // Connect immediately
     keepAlive: 30000,
     family: 4,
     db: 0,
+    connectTimeout: 10000,
 });
 
 // General Redis configuration for application use
@@ -26,12 +27,13 @@ const getRedisConfig = (config: ConfigService) => ({
     port: config.get<number>('REDIS_PORT') as number,
     maxRetriesPerRequest: 3, // For general Redis operations
     retryDelayOnFailover: 100,
-    lazyConnect: true,
+    lazyConnect: false, // Connect immediately
     keepAlive: 30000,
     family: 4,
     db: 0,
-    enableOfflineQueue: false,
-    maxLoadingTimeout: 5000,
+    enableOfflineQueue: true, // Enable offline queue for resilience
+    maxLoadingTimeout: 10000, // Increased timeout
+    connectTimeout: 10000,
 });
 
 // Custom provider to create a Redis client using the centralized config
@@ -49,11 +51,17 @@ const redisClientProvider: Provider = {
             console.error('❌ Redis connection error:', err.message);
         });
 
+        redis.on('reconnecting', (time) => {
+            console.log(`🔄 Redis reconnecting in ${time}ms`);
+        });
+
+        redis.on('ready', () => {
+            console.log('✅ Redis ready for commands');
+        });
+
         return redis;
     },
-};
-
-@Global()
+}; @Global()
 @Module({
     imports: [
         BullModule.forRootAsync({
