@@ -1,6 +1,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { useApitally } from "apitally/nestjs";
 import * as bodyParser from 'body-parser';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
@@ -15,6 +16,20 @@ import { SanitizePipe } from './pipes/sanitize.pipe';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  await useApitally(app, {
+    clientId: "0b1a1ee3-3eb3-4618-b312-f0d66b9f28c5",
+    env: "prod", // or "dev"
+
+    // Optionally enable and configure request logging
+    requestLogging: {
+      enabled: true,
+      logRequestHeaders: true,
+      logRequestBody: true,
+      logResponseBody: true,
+      captureLogs: true,
+    },
+  });
 
   app.use(compression({
     level: 6,
