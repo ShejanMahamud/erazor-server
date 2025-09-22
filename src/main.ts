@@ -2,6 +2,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as bodyParser from 'body-parser';
+import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import { writeFileSync } from 'fs';
 import helmet from 'helmet';
@@ -14,6 +15,18 @@ import { SanitizePipe } from './pipes/sanitize.pipe';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  app.use(compression({
+    level: 6,
+    threshold: 1024,
+    filter: (req, res) => {
+      if (req.headers['x-no-compression']) {
+        return false;
+      }
+      return compression.filter(req, res);
+    }
+  }));
+
   app.use(cookieParser());
   app.enableCors({
     origin: process.env.CORS_ORIGIN,
@@ -27,16 +40,39 @@ async function bootstrap() {
       transformOptions: {
         enableImplicitConversion: true,
       },
+      disableErrorMessages: process.env.NODE_ENV === 'production',
     }),
     new SanitizePipe()
   );
   app.useGlobalFilters(new AllExceptionsFilter());
-  app.use(helmet());
-  app.use(bodyParser.json({ limit: '100kb' }));
-  app.use(bodyParser.urlencoded({ limit: '100kb', extended: true }));
+  app.use(helmet({
+    crossOriginEmbedderPolicy: false,
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+        imgSrc: ["'self'", "data:", "https:"],
+      }
+    }
+  }));
+
+  app.use(bodyParser.json({
+    limit: '50kb',
+    type: ['application/json', 'text/json']
+  }));
+  app.use(bodyParser.urlencoded({
+    limit: '50kb',
+    extended: true,
+    parameterLimit: 100
+  }));
   app.setGlobalPrefix('v1/api');
-  const loggingInterceptor = app.get(LoggerInterceptor);
-  app.useGlobalInterceptors(loggingInterceptor);
+
+
+  if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_REQUEST_LOGGING === 'true') {
+    const loggingInterceptor = app.get(LoggerInterceptor);
+    app.useGlobalInterceptors(loggingInterceptor);
+  }
   const requiredEnvVars = [
     'DATABASE_URL',
     'CORS_ORIGIN',
@@ -68,19 +104,35 @@ async function bootstrap() {
     }
   });
 
-  const config = new DocumentBuilder()
-    .setTitle('Erazor Server')
-    .setDescription('The Erazor Server API description')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, config);
+  if (process.env.NODE_ENV !== 'production') {
+    const config = new DocumentBuilder()
+      .setTitle('Erazor Server')
+      .setDescription('The Erazor Server API description')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
 
-  const documentFactory = () => SwaggerModule.createDocument(app, config);
-  writeFileSync('./openapi.json', JSON.stringify(document, null, 2));
+    const documentFactory = () => SwaggerModule.createDocument(app, config);
+    const document = documentFactory();
+    writeFileSync('./openapi.json', JSON.stringify(document, null, 2));
+    SwaggerModule.setup('/v1/api/docs', app, documentFactory);
+  }
 
-  SwaggerModule.setup('/v1/api/docs', app, documentFactory);
+  process.on('SIGTERM', async () => {
+    console.log('SIGTERM received, shutting down gracefully...');
+    await app.close();
+    process.exit(0);
+  });
+  const port = process.env.PORT ?? 3000;
 
-  await app.listen(process.env.PORT ?? 3000, '0.0.0.0');
+  await app.listen(port);
+
+  console.log(`🚀 Application is running on: http://0.0.0.0:${port}/v1/api`);
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`📚 API Documentation: http://0.0.0.0:${port}/v1/api/docs`);
+  }
 }
-bootstrap();
+bootstrap().catch(err => {
+  console.error('Failed to start application:', err);
+  process.exit(1);
+});

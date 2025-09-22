@@ -6,11 +6,32 @@ import Redis from 'ioredis';
 // Define a unique token for the Redis client
 export const REDIS_CLIENT = 'REDIS_CLIENT';
 
-// Centralized Redis configuration function
+// BullMQ-specific Redis configuration
+const getBullMQRedisConfig = (config: ConfigService) => ({
+    host: config.get<string>('REDIS_HOST') as string,
+    password: config.get<string>('REDIS_PASSWORD') as string,
+    port: config.get<number>('REDIS_PORT') as number,
+    maxRetriesPerRequest: null, // Required by BullMQ
+    retryDelayOnFailover: 100,
+    lazyConnect: true,
+    keepAlive: 30000,
+    family: 4,
+    db: 0,
+});
+
+// General Redis configuration for application use
 const getRedisConfig = (config: ConfigService) => ({
     host: config.get<string>('REDIS_HOST') as string,
     password: config.get<string>('REDIS_PASSWORD') as string,
     port: config.get<number>('REDIS_PORT') as number,
+    maxRetriesPerRequest: 3, // For general Redis operations
+    retryDelayOnFailover: 100,
+    lazyConnect: true,
+    keepAlive: 30000,
+    family: 4,
+    db: 0,
+    enableOfflineQueue: false,
+    maxLoadingTimeout: 5000,
 });
 
 // Custom provider to create a Redis client using the centralized config
@@ -18,7 +39,17 @@ const redisClientProvider: Provider = {
     provide: REDIS_CLIENT,
     inject: [ConfigService],
     useFactory: (config: ConfigService) => {
-        return new Redis(getRedisConfig(config));
+        const redis = new Redis(getRedisConfig(config));
+
+        redis.on('connect', () => {
+            console.log('✅ Redis connected successfully');
+        });
+
+        redis.on('error', (err) => {
+            console.error('❌ Redis connection error:', err.message);
+        });
+
+        return redis;
     },
 };
 
@@ -28,7 +59,7 @@ const redisClientProvider: Provider = {
         BullModule.forRootAsync({
             inject: [ConfigService],
             useFactory: (config: ConfigService) => ({
-                connection: getRedisConfig(config),
+                connection: getBullMQRedisConfig(config), // Use BullMQ-specific config
             }),
         }),
         BullModule.registerQueue(
@@ -36,16 +67,16 @@ const redisClientProvider: Provider = {
                 name: 'image-processor',
                 defaultJobOptions: {
                     removeOnComplete: {
-                        age: 3600,
-                        count: 1000,
+                        age: 3600, // 1 hour
+                        count: 200, // Keep more completed jobs for monitoring
                     },
                     removeOnFail: {
-                        age: 86400,
-                        count: 100,
+                        age: 86400, // 24 hours
+                        count: 100, // Keep more failed jobs for debugging
                     },
-                    attempts: 3,
+                    attempts: 5, // Increased attempts for image processing
                     backoff: {
-                        delay: 3000,
+                        delay: 5000,
                         type: 'exponential',
                     },
                 },

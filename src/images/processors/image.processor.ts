@@ -1,9 +1,9 @@
 import { InjectQueue, Processor, WorkerHost } from "@nestjs/bullmq";
-import { Inject } from "@nestjs/common";
+import { Inject, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Polar } from "@polar-sh/sdk";
 import axios from "axios";
-import { Job } from "bullmq";
+import { Job, Queue } from "bullmq";
 import { createReadStream } from 'fs';
 import * as fs from 'fs/promises';
 import Redis from "ioredis";
@@ -12,10 +12,25 @@ import { PrismaService } from "src/prisma/prisma.service";
 import { REDIS_CLIENT } from "src/queue/queue.module";
 import { ImageGateway } from "../image.gateway";
 import FormData = require("form-data");
-type PollImagePayload = { processId: string, userId: string };
-@Processor('image-processor')
+
+type PollImagePayload = { processId: string, userId: string, attempt?: number };
+
+@Processor('image-processor', {
+    concurrency: 2, // Reduced to prevent overwhelming the system
+})
 export class ImageProcessor extends WorkerHost {
-    constructor(private readonly config: ConfigService, private readonly prisma: PrismaService, @InjectQueue('image-processor') private readonly imageProcessorQueue, private readonly imageGateway: ImageGateway, @Inject('POLAR_CLIENT') private readonly polarClient: Polar, private readonly notificationGateway: NotificationGateway, @Inject(REDIS_CLIENT) private readonly redisClient: Redis) {
+    private readonly logger = new Logger(ImageProcessor.name);
+    private readonly POLL_INTERVALS = [3000, 5000, 8000, 12000, 20000]; // Progressive intervals
+    private readonly MAX_POLL_ATTEMPTS = 20; // Max polling attempts
+    constructor(
+        private readonly config: ConfigService,
+        private readonly prisma: PrismaService,
+        @InjectQueue('image-processor') private readonly imageProcessorQueue: Queue,
+        private readonly imageGateway: ImageGateway,
+        @Inject('POLAR_CLIENT') private readonly polarClient: Polar,
+        private readonly notificationGateway: NotificationGateway,
+        @Inject(REDIS_CLIENT) private readonly redisClient: Redis
+    ) {
         super();
     }
 
@@ -30,30 +45,47 @@ export class ImageProcessor extends WorkerHost {
         };
         processId?: string
     }>): Promise<any> {
+        const startTime = Date.now();
+        this.logger.log(`Processing job ${job.name} with ID ${job.id}`);
+
         try {
             switch (job.name) {
                 case 'process-image':
-                    await this.handleImageCreateOnDB(job);
-                    break;
+                    return await this.handleImageCreateOnDB(job);
                 case 'poll-image':
-                    await this.handleImagePoll(job as Job<PollImagePayload>);
-                    break;
+                    return await this.handleImagePoll(job as Job<PollImagePayload>);
+                default:
+                    throw new Error(`Unknown job type: ${job.name}`);
             }
         } catch (error) {
-            // Clean up temp file if job fails and file still exists
-            if (job.name === 'process-image' && job.data.file?.tempFilePath) {
-                try {
-                    // Check if file exists before trying to delete it
-                    await fs.access(job.data.file.tempFilePath);
-                    await fs.unlink(job.data.file.tempFilePath);
-                } catch (unlinkError) {
-                    // Only log error if it's not a "file not found" error
-                    if (unlinkError.code !== 'ENOENT') {
-                        console.error(`Failed to clean up temp file after job failure ${job.data.file.tempFilePath}:`, unlinkError);
-                    }
+            const duration = Date.now() - startTime;
+            this.logger.error(`Job ${job.name} failed after ${duration}ms:`, {
+                jobId: job.id,
+                error: error.message,
+                stack: error.stack
+            });
+
+            // Enhanced cleanup
+            await this.cleanupTempFiles(job);
+            throw error;
+        } finally {
+            const duration = Date.now() - startTime;
+            this.logger.log(`Job ${job.name} completed in ${duration}ms`);
+        }
+    }
+
+    // Enhanced file cleanup utility
+    private async cleanupTempFiles(job: Job<any>): Promise<void> {
+        if (job.name === 'process-image' && job.data.file?.tempFilePath) {
+            try {
+                await fs.access(job.data.file.tempFilePath);
+                await fs.unlink(job.data.file.tempFilePath);
+                this.logger.log(`Cleaned up temp file: ${job.data.file.tempFilePath}`);
+            } catch (unlinkError: any) {
+                if (unlinkError.code !== 'ENOENT') {
+                    this.logger.warn(`Failed to cleanup temp file ${job.data.file.tempFilePath}:`, unlinkError.message);
                 }
             }
-            throw error;
         }
     }
 
@@ -74,43 +106,72 @@ export class ImageProcessor extends WorkerHost {
             filename?: string;
         };
     }>): Promise<any> {
-        // Check if temp file exists
+        const { tempFilePath, originalname, mimetype, size } = job.data.file;
+
+        // Verify file exists and get file stats
+        let fileStats;
         try {
-            await fs.access(job.data.file.tempFilePath);
+            await fs.access(tempFilePath);
+            fileStats = await fs.stat(tempFilePath);
         } catch (error) {
-            throw new Error(`Temp file not found: ${job.data.file.tempFilePath}`);
+            throw new Error(`Temp file not found or inaccessible: ${tempFilePath}`);
+        }
+
+        // Validate file size consistency
+        if (fileStats.size !== size) {
+            this.logger.warn(`File size mismatch: expected ${size}, got ${fileStats.size}`);
         }
 
         const formData = new FormData();
+        const fileStream = createReadStream(tempFilePath);
 
-        // Create a read stream from the temp file
-        const fileStream = createReadStream(job.data.file.tempFilePath);
+        // Enhanced error handling for file stream
+        fileStream.on('error', (error) => {
+            this.logger.error(`File stream error for ${tempFilePath}:`, error);
+        });
 
         formData.append('image', fileStream, {
-            filename: job.data.file.originalname,
-            contentType: job.data.file.mimetype
+            filename: originalname,
+            contentType: mimetype,
+            knownLength: fileStats.size // Improve upload efficiency
         });
 
         try {
-            const { data } = await axios.post(
-                `${this.config.get<string>('IMAGE_PROCESSOR_URL')}/process_image?token=${this.config.get<string>('IMAGE_PROCESSOR_API_KEY')}`,
+            this.logger.log(`Uploading image ${originalname} (${(size / 1024 / 1024).toFixed(2)}MB) for processing`);
+
+            const response = await axios.post(
+                `${this.config.get<string>('IMAGE_PROCESSOR_URL')}/process_image`,
                 formData,
                 {
                     headers: {
                         ...formData.getHeaders(),
+                        'X-API-Key': this.config.get<string>('IMAGE_PROCESSOR_API_KEY'),
                     },
-                    timeout: 60000,
+                    timeout: 120000, // Increased timeout for large files
                     maxContentLength: Infinity,
-                    maxBodyLength: Infinity
+                    maxBodyLength: Infinity,
+                    // Add retry logic for network issues
+                    validateStatus: (status) => status < 500, // Don't throw on 4xx errors
                 }
             );
-            return data;
+
+            if (response.status >= 400) {
+                throw new Error(`Image processing API error: ${response.status} - ${response.statusText}`);
+            }
+
+            this.logger.log(`Image processing initiated for ${originalname}`);
+            return response.data;
+        } catch (error: any) {
+            this.logger.error(`Failed to process image ${originalname}:`, error.message);
+            throw error;
         } finally {
-            // Clean up the temporary file after processing
+            // Ensure file stream is closed and file is cleaned up
+            fileStream.destroy();
             try {
-                await fs.unlink(job.data.file.tempFilePath);
-            } catch (error) {
-                console.error(`Failed to delete temp file ${job.data.file.tempFilePath}:`, error);
+                await fs.unlink(tempFilePath);
+                this.logger.log(`Cleaned up temp file: ${tempFilePath}`);
+            } catch (cleanupError: any) {
+                this.logger.warn(`Cleanup failed for ${tempFilePath}:`, cleanupError.message);
             }
         }
     }
@@ -123,8 +184,46 @@ export class ImageProcessor extends WorkerHost {
         });
     }
 
+    // Cached image status check with Redis
     async findImageByProcessId(processId: string): Promise<any> {
-        return axios.get(`${this.config.get<string>('IMAGE_PROCESSOR_URL')}/process_image/${processId}?token=${this.config.get<string>('IMAGE_PROCESSOR_API_KEY')}`);
+        const cacheKey = `image_status:${processId}`;
+
+        // Check cache first
+        try {
+            const cached = await this.redisClient.get(cacheKey);
+            if (cached) {
+                const data = JSON.parse(cached);
+                // Only use cache for non-ready states to ensure fresh data for completed images
+                if (data.statusName !== 'ready') {
+                    this.logger.debug(`Using cached status for ${processId}: ${data.statusName}`);
+                    return { data };
+                }
+            }
+        } catch (cacheError) {
+            this.logger.warn(`Cache read failed for ${processId}:`, cacheError);
+        }
+
+        try {
+            const response = await axios.get(
+                `${this.config.get<string>('IMAGE_PROCESSOR_URL')}/process_image/${processId}`,
+                {
+                    params: { token: this.config.get<string>('IMAGE_PROCESSOR_API_KEY') },
+                    timeout: 15000, // Reduced timeout for status checks
+                }
+            );
+
+            // Cache the response for 30 seconds
+            try {
+                await this.redisClient.setex(cacheKey, 30, JSON.stringify(response.data));
+            } catch (cacheError) {
+                this.logger.warn(`Cache write failed for ${processId}:`, cacheError);
+            }
+
+            return response;
+        } catch (error: any) {
+            this.logger.error(`Failed to check status for ${processId}:`, error.message);
+            throw error;
+        }
     }
 
     async handleImageCreateOnDB(job: Job<{
@@ -139,7 +238,7 @@ export class ImageProcessor extends WorkerHost {
     }>): Promise<void> {
         const anonUser = job.data.userId.startsWith('anon-')
         const data = await this.handleImageProcessing(job);
-        const image = await this.prisma.image.create({
+        await this.prisma.image.create({
             data: {
                 ownerId: anonUser ? null : job.data.userId,
                 processId: data.id,
@@ -164,39 +263,121 @@ export class ImageProcessor extends WorkerHost {
         });
     }
 
-    async handleImagePoll(job: Job<{ processId: string, userId: string }>): Promise<void> {
+    async handleImagePoll(job: Job<{ processId: string, userId: string, attempt?: number }>): Promise<void> {
+        const { processId, userId, attempt = 0 } = job.data;
+
+        this.logger.log(`Polling image ${processId} (attempt ${attempt + 1}/${this.MAX_POLL_ATTEMPTS})`);
+
         const image = await this.prisma.image.findUnique({
-            where: { processId: job.data.processId },
+            where: { processId },
+            select: {
+                id: true,
+                processId: true,
+                ownerId: true,
+                originalFileName: true,
+                status: true
+            }
         });
+
         if (!image) {
-            throw new Error(`Image not found for processId ${job.data.processId}`);
+            throw new Error(`Image not found for processId ${processId}`);
         }
 
-        const result = await this.findImageByProcessId(image.processId);
+        // Skip polling if image is already ready (race condition protection)
+        if (image.status === 'ready') {
+            this.logger.log(`Image ${processId} already marked as ready, skipping poll`);
+            return;
+        }
+
+        try {
+            const result = await this.findImageByProcessId(processId);
+
+            if (result.data.statusName === 'ready') {
+                await this.completeImageProcessing(image, result.data, userId);
+            } else if (
+                result.data.statusName === 'processing' ||
+                result.data.statusName === 'queue'
+            ) {
+                if (attempt < this.MAX_POLL_ATTEMPTS) {
+                    // Progressive delay - longer intervals for later attempts
+                    const delayIndex = Math.min(attempt, this.POLL_INTERVALS.length - 1);
+                    const delay = this.POLL_INTERVALS[delayIndex];
+
+                    await this.imageProcessorQueue.add(
+                        'poll-image',
+                        { processId, userId, attempt: attempt + 1 },
+                        {
+                            delay,
+                            priority: Math.max(1, 10 - attempt), // Lower priority for later attempts
+                            removeOnComplete: 10,
+                            removeOnFail: 3
+                        }
+                    );
+
+                    this.logger.log(`Scheduled next poll for ${processId} in ${delay}ms`);
+                } else {
+                    this.logger.error(`Max polling attempts reached for ${processId}`);
+                    // Mark as failed or handle timeout
+                    await this.handlePollingTimeout(image, userId);
+                }
+            } else if (result.data.statusName === 'failed' || result.data.statusName === 'error') {
+                this.logger.error(`Image processing failed for ${processId}: ${result.data.statusName}`);
+                await this.handleProcessingFailure(image, result.data, userId);
+            }
+        } catch (error: any) {
+            this.logger.error(`Polling failed for ${processId}:`, error.message);
+
+            // Retry with exponential backoff on network errors
+            if (attempt < this.MAX_POLL_ATTEMPTS && this.isRetryableError(error)) {
+                const delay = Math.min(30000, 5000 * Math.pow(2, attempt)); // Max 30s delay
+                await this.imageProcessorQueue.add(
+                    'poll-image',
+                    { processId, userId, attempt: attempt + 1 },
+                    { delay, priority: 1 }
+                );
+                this.logger.log(`Retrying poll for ${processId} after error, attempt ${attempt + 1}`);
+            } else {
+                throw error;
+            }
+        }
+    }
+
+    // Helper method to complete image processing
+    private async completeImageProcessing(image: any, resultData: any, userId: string): Promise<void> {
+        this.logger.log(`Completing image processing for ${image.processId}`);
+
+        // Check user subscription status
         let freeUser = true;
         if (image.ownerId) {
             let isPaid = await this.redisClient.get(`user:${image.ownerId}:is_paid`);
             if (isPaid === null) {
-                const customer = await this.polarClient.customers.getStateExternal({ externalId: image.ownerId });
-                isPaid = customer.activeSubscriptions?.[0]?.amount > 0 ? 'true' : 'false';
-                await this.redisClient.set(`user:${image.ownerId}:is_paid`, isPaid, 'EX', 300);
+                try {
+                    const customer = await this.polarClient.customers.getStateExternal({ externalId: image.ownerId });
+                    isPaid = customer.activeSubscriptions?.[0]?.amount > 0 ? 'true' : 'false';
+                    await this.redisClient.set(`user:${image.ownerId}:is_paid`, isPaid, 'EX', 600); // Cache for 10 minutes
+                } catch (error) {
+                    this.logger.warn(`Failed to check subscription for ${image.ownerId}:`, error);
+                    isPaid = 'false'; // Default to free user on error
+                }
             }
             freeUser = isPaid === 'false';
         }
 
+        // Update image with processing results
+        const updatedImage = await this.prisma.image.update({
+            where: { id: image.id },
+            data: {
+                status: 'ready',
+                originalImageUrlLQ: resultData.source?.thumb2x_url || null,
+                bgRemovedFileName: `erazor_${image.id}.png`,
+                ...(freeUser && { bgRemovedImageUrlLQ: resultData.processed?.thumb2x_url || null }),
+                ...(!freeUser && { bgRemovedImageUrlHQ: resultData.processed?.url || null }),
+            },
+        });
 
-        if (result.data.statusName === 'ready') {
-            const updatedImage = await this.prisma.image.update({
-                where: { id: image.id },
-                data: {
-                    status: 'ready',
-                    originalImageUrlLQ: result.data.source?.thumb2x_url || null,
-                    bgRemovedFileName: `erazor_${image.id}.png`,
-                    ...(freeUser && { bgRemovedImageUrlLQ: result.data.processed?.thumb2x_url || null }),
-                    ...(!freeUser && { bgRemovedImageUrlHQ: result.data.processed?.url || null }),
-                },
-            });
-            if (image.ownerId) {
+        // Track usage analytics
+        if (image.ownerId) {
+            try {
                 await this.polarClient.events.ingest({
                     events: [{
                         name: "bg_remove",
@@ -208,31 +389,75 @@ export class ImageProcessor extends WorkerHost {
                         }
                     }]
                 });
+
+                // Send completion notification
                 await this.notificationGateway.sendNotification({
                     userId: image.ownerId,
                     type: 'INFO',
-                    message: `Your image ${image.originalFileName} is being processed.`,
-                })
+                    message: `Your image ${image.originalFileName} has been processed successfully.`,
+                });
+            } catch (error) {
+                this.logger.warn(`Failed to send analytics/notification for ${image.ownerId}:`, error);
             }
-            // Send WebSocket update - use job.data.userId for anonymous users, image.ownerId for registered users
-            const targetUserId = job.data.userId || image.ownerId;
-            if (targetUserId) {
-                this.imageGateway.sendImageUpdate(targetUserId, updatedImage);
-            } else {
-                console.warn('No valid userId found for WebSocket update. Job userId:', job.data.userId, 'Image ownerId:', image.ownerId);
-            }
-        } else if (
-            result.data.statusName === 'processing' ||
-            result.data.statusName === 'queue'
-        ) {
-            await this.imageProcessorQueue.add(
-                'poll-image',
-                { processId: image.processId, userId: job.data.userId },
-                { delay: 5000, priority: 1 }
-            );
+        }
+
+        // Send WebSocket update
+        const targetUserId = userId || image.ownerId;
+        if (targetUserId) {
+            this.imageGateway.sendImageUpdate(targetUserId, updatedImage);
+            this.logger.log(`Sent WebSocket update for ${targetUserId}`);
+        }
+
+        // Clear cache
+        await this.redisClient.del(`image_status:${image.processId}`);
+    }
+
+    // Handle polling timeout
+    private async handlePollingTimeout(image: any, userId: string): Promise<void> {
+        this.logger.error(`Polling timeout for image ${image.processId}`);
+
+        // Update image status to indicate timeout
+        await this.prisma.image.update({
+            where: { id: image.id },
+            data: { status: 'queue' } // Keep as queue for potential retry
+        });
+
+        // Notify user of timeout
+        if (image.ownerId) {
+            await this.notificationGateway.sendNotification({
+                userId: image.ownerId,
+                type: 'WARNING',
+                message: `Processing of ${image.originalFileName} is taking longer than expected. Please try again later.`,
+            });
         }
     }
 
+    // Handle processing failure
+    private async handleProcessingFailure(image: any, resultData: any, userId: string): Promise<void> {
+        this.logger.error(`Processing failed for image ${image.processId}: ${resultData.statusName}`);
 
+        // Update image status
+        await this.prisma.image.update({
+            where: { id: image.id },
+            data: { status: 'queue' } // Reset to queue for potential retry
+        });
 
+        // Notify user of failure
+        if (image.ownerId) {
+            await this.notificationGateway.sendNotification({
+                userId: image.ownerId,
+                type: 'ALERT',
+                message: `Failed to process ${image.originalFileName}. Please try uploading again.`,
+            });
+        }
+    }
+
+    // Check if error is retryable
+    private isRetryableError(error: any): boolean {
+        // Network errors, timeouts, and 5xx server errors are retryable
+        return error.code === 'ECONNRESET' ||
+            error.code === 'ENOTFOUND' ||
+            error.code === 'ETIMEDOUT' ||
+            (error.response && error.response.status >= 500);
+    }
 }

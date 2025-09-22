@@ -26,9 +26,9 @@ model User {
   Subscription Subscription?
 
   @@unique([email, username, id])
-  @@index([email])
-  @@index([username])
-  @@index([id])
+  @@index([email, isDeleted])
+  @@index([role, isBlocked]) 
+  @@index([createdAt, verified])
   @@map("users")
 }
 
@@ -48,9 +48,9 @@ model Image {
 
   user User? @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
-  @@index([ownerId])
-  @@index([processId])
-  @@index([status])
+ @@index([ownerId, status, createdAt])
+  @@index([status, createdAt])         
+  @@index([processId, status])   
   @@map("images")
 }
 
@@ -92,9 +92,8 @@ model Notification {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
-  @@index([type])
-  @@index([isRead])
+  @@index([userId, isRead, createdAt]) 
+  @@index([type, createdAt]) 
   @@map("notifications")
 }
 
