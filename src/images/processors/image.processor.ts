@@ -140,21 +140,17 @@ export class ImageProcessor extends WorkerHost {
             this.logger.log(`Uploading image ${originalname} (${(size / 1024 / 1024).toFixed(2)}MB) for processing`);
 
             const response = await axios.post(
-                `${this.config.get<string>('IMAGE_PROCESSOR_URL')}/process_image`,
+                `${this.config.get<string>('IMAGE_PROCESSOR_URL')}/process_image?token=${this.config.get<string>('IMAGE_PROCESSOR_API_KEY')}`,
                 formData,
                 {
                     headers: {
                         ...formData.getHeaders(),
-                        'X-API-Key': this.config.get<string>('IMAGE_PROCESSOR_API_KEY'),
                     },
-                    timeout: 120000, // Increased timeout for large files
+                    timeout: 60000,
                     maxContentLength: Infinity,
-                    maxBodyLength: Infinity,
-                    // Add retry logic for network issues
-                    validateStatus: (status) => status < 500, // Don't throw on 4xx errors
+                    maxBodyLength: Infinity
                 }
             );
-
             if (response.status >= 400) {
                 throw new Error(`Image processing API error: ${response.status} - ${response.statusText}`);
             }
