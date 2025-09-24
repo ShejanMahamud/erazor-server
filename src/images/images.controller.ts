@@ -6,7 +6,7 @@ import type { Request } from 'express';
 import { ImageStatus, Permissions, Roles } from 'generated/prisma';
 import { diskStorage } from 'multer';
 import { extname } from 'path/win32';
-import { Observable, Subject } from 'rxjs';
+import { Observable } from 'rxjs';
 import { FileSizeLimitInterceptor } from 'src/common/interceptors/subscription-file-validation';
 import { PermissionsRequired } from 'src/decorators/permissions.decorator';
 import { RolesRequired } from 'src/decorators/roles.decorator';
@@ -18,11 +18,15 @@ import { RateLimitGuard } from 'src/guards/rate-limit.guard';
 import { RolesGuard } from 'src/guards/roles.guard';
 import { ActiveSubscriptionGuard } from 'src/guards/subscription-status.guard';
 import { ImagesService } from './images.service';
+import { SseService } from './sse.service';
 
 @ApiTags('Images')
 @Controller('images')
 export class ImagesController {
-  constructor(private readonly imagesService: ImagesService, private userStreams: Record<string, Subject<MessageEvent>> = {}) { }
+  constructor(
+    private readonly imagesService: ImagesService,
+    private readonly sseService: SseService
+  ) { }
 
   @UseGuards(OptionalClerkGuard, RateLimitGuard(20, 60, 3), ActiveSubscriptionGuard, HasCreditGuard)
   @Post('process')
@@ -51,31 +55,23 @@ export class ImagesController {
 
   @Sse('updates/:userId')
   imageUpdates(@Param('userId') userId: string, @Req() req: Request): Observable<MessageEvent> {
-    if (!this.userStreams[userId]) {
-      this.userStreams[userId] = new Subject<MessageEvent>();
-    }
     if (req.user.sub !== userId) {
       throw new BadRequestException('You can only subscribe to your own updates');
     }
 
-    const stream$ = this.userStreams[userId].asObservable();
+    const stream = this.sseService.getOrCreateStream(userId);
+    const stream$ = stream.asObservable();
 
     // Listen for client disconnect
     req.on('close', () => {
-      if (this.userStreams[userId]) {
-        this.userStreams[userId].complete(); // Complete the Subject
-        delete this.userStreams[userId];    // Remove from record
-      }
+      this.sseService.closeStream(userId);
     });
 
     return stream$;
   }
 
   pushUpdate(userId: string, data: any) {
-    if (!this.userStreams[userId]) {
-      this.userStreams[userId] = new Subject<MessageEvent>();
-    }
-    this.userStreams[userId].next({ data } as MessageEvent);
+    this.sseService.pushUpdate(userId, data);
   }
 
 
