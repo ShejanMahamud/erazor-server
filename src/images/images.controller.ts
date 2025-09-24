@@ -2,7 +2,7 @@ import { BadRequestException, Controller, DefaultValuePipe, Delete, Get, Param, 
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags } from '@nestjs/swagger';
 import { randomUUID } from 'crypto';
-import type { Request, Response } from 'express';
+import type { Request } from 'express';
 import { ImageStatus, Permissions, Roles } from 'generated/prisma';
 import { diskStorage } from 'multer';
 import { extname } from 'path/win32';
@@ -53,16 +53,12 @@ export class ImagesController {
     return this.imagesService.processImage(req.user.sub, file);
   }
 
+  @UseGuards(OptionalClerkGuard)
   @Sse('updates/:userId')
-  imageUpdates(@Param('userId') userId: string, @Req() req: Request, res: Response): Observable<MessageEvent> {
-    if (req.user.sub !== userId) {
+  imageUpdates(@Param('userId') userId: string, @Req() req: Request): Observable<MessageEvent> {
+    if (req.user?.sub !== userId) {
       throw new BadRequestException('You can only subscribe to your own updates');
     }
-
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.flushHeaders();
 
     const stream = this.sseService.getOrCreateStream(userId);
     const stream$ = stream.asObservable();
