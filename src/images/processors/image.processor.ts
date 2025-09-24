@@ -10,7 +10,7 @@ import Redis from "ioredis";
 import { NotificationGateway } from "src/notification/notification.gateway";
 import { PrismaService } from "src/prisma/prisma.service";
 import { REDIS_CLIENT } from "src/queue/queue.module";
-import { ImageGateway } from "../image.gateway";
+import { ImagesController } from "../images.controller";
 import FormData = require("form-data");
 
 type PollImagePayload = { processId: string, userId: string, attempt?: number };
@@ -26,7 +26,7 @@ export class ImageProcessor extends WorkerHost {
         private readonly config: ConfigService,
         private readonly prisma: PrismaService,
         @InjectQueue('image-processor') private readonly imageProcessorQueue: Queue,
-        private readonly imageGateway: ImageGateway,
+        @Inject(ImagesController) private readonly imagesController: ImagesController,
         @Inject('POLAR_CLIENT') private readonly polarClient: Polar,
         private readonly notificationGateway: NotificationGateway,
         @Inject(REDIS_CLIENT) private readonly redisClient: Redis
@@ -400,7 +400,7 @@ export class ImageProcessor extends WorkerHost {
         // Send WebSocket update
         const targetUserId = userId || image.ownerId;
         if (targetUserId) {
-            this.imageGateway.sendImageUpdate(targetUserId, updatedImage);
+            this.imagesController.pushUpdate(targetUserId, updatedImage);
             this.logger.log(`Sent WebSocket update for ${targetUserId}`);
         }
 
