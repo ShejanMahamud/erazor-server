@@ -396,179 +396,36 @@
     },
     "/v1/api/images/process": {
       "post": {
-        "description": "Upload and process an image to remove background. Requires active subscription and credits.",
         "operationId": "ImagesController_processImage",
         "parameters": [],
-        "requestBody": {
-          "required": true,
-          "description": "Image file to process",
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "file": {
-                    "type": "string",
-                    "format": "binary",
-                    "description": "Image file (jpg, jpeg, png, gif, bmp, tiff, webp) - Max size: 20MB"
-                  }
-                },
-                "required": [
-                  "file"
-                ]
-              }
-            }
-          }
-        },
         "responses": {
           "201": {
-            "description": "Image processing started successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": true
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Image processing started successfully"
-                    },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "string",
-                          "example": "uuid-string"
-                        },
-                        "ownerId": {
-                          "type": "string",
-                          "nullable": true,
-                          "example": "user-id-123"
-                        },
-                        "processId": {
-                          "type": "string",
-                          "example": "process-uuid"
-                        },
-                        "originalFileName": {
-                          "type": "string",
-                          "example": "image.jpg"
-                        },
-                        "originalImageUrlLQ": {
-                          "type": "string",
-                          "nullable": true,
-                          "example": "https://example.com/image-lq.jpg"
-                        },
-                        "originalImageUrlHQ": {
-                          "type": "string",
-                          "nullable": true,
-                          "example": "https://example.com/image-hq.jpg"
-                        },
-                        "bgRemovedFileName": {
-                          "type": "string",
-                          "nullable": true,
-                          "example": null
-                        },
-                        "bgRemovedImageUrlLQ": {
-                          "type": "string",
-                          "nullable": true,
-                          "example": null
-                        },
-                        "bgRemovedImageUrlHQ": {
-                          "type": "string",
-                          "nullable": true,
-                          "example": null
-                        },
-                        "status": {
-                          "type": "string",
-                          "enum": [
-                            "queue",
-                            "processing",
-                            "ready"
-                          ],
-                          "example": "queue"
-                        },
-                        "createdAt": {
-                          "type": "string",
-                          "format": "date-time",
-                          "example": "2023-09-17T10:00:00Z"
-                        },
-                        "updatedAt": {
-                          "type": "string",
-                          "format": "date-time",
-                          "example": "2023-09-17T10:00:00Z"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request - Invalid file format or size",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": false
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Only image files are allowed!"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Payment required - Insufficient credits or subscription required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": false
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Insufficient credits or active subscription required"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests - Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": false
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Rate limit exceeded"
-                    }
-                  }
-                }
-              }
-            }
+            "description": ""
           }
         },
-        "summary": "Process uploaded image",
+        "tags": [
+          "Images"
+        ]
+      }
+    },
+    "/v1/api/images/updates/{userId}": {
+      "get": {
+        "operationId": "ImagesController_imageUpdates",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
         "tags": [
           "Images"
         ]
@@ -576,203 +433,54 @@
     },
     "/v1/api/images/user/{id}": {
       "get": {
-        "description": "Retrieve all images for a specific user with pagination and filtering options",
         "operationId": "ImagesController_findAllImagesByUserId",
         "parameters": [
           {
             "name": "id",
             "required": true,
             "in": "path",
-            "description": "User ID to fetch images for",
             "schema": {
-              "example": "user-id-123",
               "type": "string"
             }
           },
           {
             "name": "limit",
-            "required": false,
+            "required": true,
             "in": "query",
-            "description": "Number of items to return per page",
             "schema": {
-              "example": 10,
               "type": "number"
             }
           },
           {
             "name": "cursor",
-            "required": false,
+            "required": true,
             "in": "query",
-            "description": "Cursor for pagination (next page)",
             "schema": {
-              "example": "cursor-string",
               "type": "string"
             }
           },
           {
             "name": "search",
-            "required": false,
+            "required": true,
             "in": "query",
-            "description": "Search term to filter images by filename",
             "schema": {
-              "example": "image-name",
               "type": "string"
             }
           },
           {
             "name": "status",
-            "required": false,
+            "required": true,
             "in": "query",
-            "description": "Filter images by processing status",
             "schema": {
-              "enum": [
-                "queue",
-                "processing",
-                "ready"
-              ],
               "type": "string"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "User images retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": true
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Images retrieved successfully"
-                    },
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "id": {
-                            "type": "string",
-                            "example": "uuid-string"
-                          },
-                          "ownerId": {
-                            "type": "string",
-                            "nullable": true,
-                            "example": "user-id-123"
-                          },
-                          "processId": {
-                            "type": "string",
-                            "example": "process-uuid"
-                          },
-                          "originalFileName": {
-                            "type": "string",
-                            "example": "image.jpg"
-                          },
-                          "originalImageUrlLQ": {
-                            "type": "string",
-                            "nullable": true,
-                            "example": "https://example.com/image-lq.jpg"
-                          },
-                          "originalImageUrlHQ": {
-                            "type": "string",
-                            "nullable": true,
-                            "example": "https://example.com/image-hq.jpg"
-                          },
-                          "bgRemovedFileName": {
-                            "type": "string",
-                            "nullable": true,
-                            "example": "processed-image.png"
-                          },
-                          "bgRemovedImageUrlLQ": {
-                            "type": "string",
-                            "nullable": true,
-                            "example": "https://example.com/processed-lq.png"
-                          },
-                          "bgRemovedImageUrlHQ": {
-                            "type": "string",
-                            "nullable": true,
-                            "example": "https://example.com/processed-hq.png"
-                          },
-                          "status": {
-                            "type": "string",
-                            "enum": [
-                              "queue",
-                              "processing",
-                              "ready"
-                            ],
-                            "example": "ready"
-                          },
-                          "createdAt": {
-                            "type": "string",
-                            "format": "date-time",
-                            "example": "2023-09-17T10:00:00Z"
-                          },
-                          "updatedAt": {
-                            "type": "string",
-                            "format": "date-time",
-                            "example": "2023-09-17T10:00:00Z"
-                          }
-                        }
-                      }
-                    },
-                    "meta": {
-                      "type": "object",
-                      "properties": {
-                        "limit": {
-                          "type": "number",
-                          "example": 10
-                        },
-                        "count": {
-                          "type": "number",
-                          "example": 25
-                        },
-                        "hasNextPage": {
-                          "type": "boolean",
-                          "example": true
-                        },
-                        "nextCursor": {
-                          "type": "string",
-                          "nullable": true,
-                          "example": "next-cursor-string"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": false
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Authentication required"
-                    }
-                  }
-                }
-              }
-            }
+            "description": ""
           }
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Get user images",
         "tags": [
           "Images"
         ]
@@ -780,213 +488,46 @@
     },
     "/v1/api/images": {
       "get": {
-        "description": "Retrieve all images in the system with pagination and filtering options. Requires admin role.",
         "operationId": "ImagesController_findAllImages",
         "parameters": [
           {
             "name": "limit",
-            "required": false,
+            "required": true,
             "in": "query",
-            "description": "Number of items to return per page",
             "schema": {
-              "example": 10,
               "type": "number"
             }
           },
           {
             "name": "cursor",
-            "required": false,
+            "required": true,
             "in": "query",
-            "description": "Cursor for pagination (next page)",
             "schema": {
-              "example": "cursor-string",
               "type": "string"
             }
           },
           {
             "name": "search",
-            "required": false,
+            "required": true,
             "in": "query",
-            "description": "Search term to filter images by filename",
             "schema": {
-              "example": "image-name",
               "type": "string"
             }
           },
           {
             "name": "status",
-            "required": false,
+            "required": true,
             "in": "query",
-            "description": "Filter images by processing status",
             "schema": {
-              "enum": [
-                "queue",
-                "processing",
-                "ready"
-              ],
               "type": "string"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "All images retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": true
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Images retrieved successfully"
-                    },
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "id": {
-                            "type": "string",
-                            "example": "uuid-string"
-                          },
-                          "ownerId": {
-                            "type": "string",
-                            "nullable": true,
-                            "example": "user-id-123"
-                          },
-                          "processId": {
-                            "type": "string",
-                            "example": "process-uuid"
-                          },
-                          "originalFileName": {
-                            "type": "string",
-                            "example": "image.jpg"
-                          },
-                          "originalImageUrlLQ": {
-                            "type": "string",
-                            "nullable": true,
-                            "example": "https://example.com/image-lq.jpg"
-                          },
-                          "originalImageUrlHQ": {
-                            "type": "string",
-                            "nullable": true,
-                            "example": "https://example.com/image-hq.jpg"
-                          },
-                          "bgRemovedFileName": {
-                            "type": "string",
-                            "nullable": true,
-                            "example": "processed-image.png"
-                          },
-                          "bgRemovedImageUrlLQ": {
-                            "type": "string",
-                            "nullable": true,
-                            "example": "https://example.com/processed-lq.png"
-                          },
-                          "bgRemovedImageUrlHQ": {
-                            "type": "string",
-                            "nullable": true,
-                            "example": "https://example.com/processed-hq.png"
-                          },
-                          "status": {
-                            "type": "string",
-                            "enum": [
-                              "queue",
-                              "processing",
-                              "ready"
-                            ],
-                            "example": "ready"
-                          },
-                          "createdAt": {
-                            "type": "string",
-                            "format": "date-time",
-                            "example": "2023-09-17T10:00:00Z"
-                          },
-                          "updatedAt": {
-                            "type": "string",
-                            "format": "date-time",
-                            "example": "2023-09-17T10:00:00Z"
-                          }
-                        }
-                      }
-                    },
-                    "meta": {
-                      "type": "object",
-                      "properties": {
-                        "limit": {
-                          "type": "number",
-                          "example": 10
-                        },
-                        "count": {
-                          "type": "number",
-                          "example": 100
-                        },
-                        "hasNextPage": {
-                          "type": "boolean",
-                          "example": true
-                        },
-                        "nextCursor": {
-                          "type": "string",
-                          "nullable": true,
-                          "example": "next-cursor-string"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": false
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Authentication required"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden - Admin role required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": false
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Admin role required"
-                    }
-                  }
-                }
-              }
-            }
+            "description": ""
           }
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Get all images (Admin only)",
         "tags": [
           "Images"
         ]
@@ -994,158 +535,22 @@
     },
     "/v1/api/images/{id}": {
       "get": {
-        "description": "Retrieve a specific image by its ID",
         "operationId": "ImagesController_findImageById",
         "parameters": [
           {
             "name": "id",
             "required": true,
             "in": "path",
-            "description": "Image ID to retrieve",
             "schema": {
-              "example": "uuid-string",
               "type": "string"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Image retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": true
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Image retrieved successfully"
-                    },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "string",
-                          "example": "uuid-string"
-                        },
-                        "ownerId": {
-                          "type": "string",
-                          "nullable": true,
-                          "example": "user-id-123"
-                        },
-                        "processId": {
-                          "type": "string",
-                          "example": "process-uuid"
-                        },
-                        "originalFileName": {
-                          "type": "string",
-                          "example": "image.jpg"
-                        },
-                        "originalImageUrlLQ": {
-                          "type": "string",
-                          "nullable": true,
-                          "example": "https://example.com/image-lq.jpg"
-                        },
-                        "originalImageUrlHQ": {
-                          "type": "string",
-                          "nullable": true,
-                          "example": "https://example.com/image-hq.jpg"
-                        },
-                        "bgRemovedFileName": {
-                          "type": "string",
-                          "nullable": true,
-                          "example": "processed-image.png"
-                        },
-                        "bgRemovedImageUrlLQ": {
-                          "type": "string",
-                          "nullable": true,
-                          "example": "https://example.com/processed-lq.png"
-                        },
-                        "bgRemovedImageUrlHQ": {
-                          "type": "string",
-                          "nullable": true,
-                          "example": "https://example.com/processed-hq.png"
-                        },
-                        "status": {
-                          "type": "string",
-                          "enum": [
-                            "queue",
-                            "processing",
-                            "ready"
-                          ],
-                          "example": "ready"
-                        },
-                        "createdAt": {
-                          "type": "string",
-                          "format": "date-time",
-                          "example": "2023-09-17T10:00:00Z"
-                        },
-                        "updatedAt": {
-                          "type": "string",
-                          "format": "date-time",
-                          "example": "2023-09-17T10:00:00Z"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": false
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Authentication required"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Image not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": false
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Image not found"
-                    },
-                    "data": {
-                      "type": "null",
-                      "example": null
-                    }
-                  }
-                }
-              }
-            }
+            "description": ""
           }
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Get image by ID",
         "tags": [
           "Images"
         ]
@@ -1153,112 +558,22 @@
     },
     "/v1/api/images/delete/{id}": {
       "delete": {
-        "description": "Delete an image from the system. Requires admin or moderator role with DELETE_IMAGES permission.",
         "operationId": "ImagesController_deleteImage",
         "parameters": [
           {
             "name": "id",
             "required": true,
             "in": "path",
-            "description": "Image ID to delete",
             "schema": {
-              "example": "uuid-string",
               "type": "string"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Image deleted successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": true
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Image deleted successfully"
-                    },
-                    "data": {
-                      "type": "boolean",
-                      "example": true
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": false
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Authentication required"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden - Insufficient permissions",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": false
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Admin or moderator role with DELETE_IMAGES permission required"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Image not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": false
-                    },
-                    "message": {
-                      "type": "string",
-                      "example": "Image not found"
-                    }
-                  }
-                }
-              }
-            }
+            "description": ""
           }
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Delete image",
         "tags": [
           "Images"
         ]
