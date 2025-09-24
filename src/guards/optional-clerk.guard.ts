@@ -6,6 +6,7 @@ import {
     Injectable,
     Logger,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Polar } from '@polar-sh/sdk';
 import { createHash } from 'crypto';
 import { Request, Response } from 'express';
@@ -18,6 +19,7 @@ export class OptionalClerkGuard implements CanActivate {
     constructor(
         @Inject('CLERK_CLIENT') private readonly clerkClient: ClerkClient,
         @Inject('POLAR_CLIENT') private readonly polarClient: Polar,
+        private readonly configService: ConfigService,
     ) { }
 
     async canActivate(ctx: ExecutionContext): Promise<boolean> {
@@ -25,8 +27,8 @@ export class OptionalClerkGuard implements CanActivate {
         const res = ctx.switchToHttp().getResponse<Response>();
 
         // Build full URL for Clerk
-        const protocol = req.protocol || 'http';
-        const host = req.get('host') || 'localhost:3000';
+        const protocol = req.protocol;
+        const host = req.get('host');
         const fullUrl = `${protocol}://${host}${req.originalUrl || req.url}`;
 
         // Clerk expects a fetch-like request
@@ -53,7 +55,7 @@ export class OptionalClerkGuard implements CanActivate {
 
             if (token) {
                 const payload = await verifyToken(token, {
-                    secretKey: process.env.CLERK_SECRET_KEY,
+                    secretKey: this.configService.get<string>('CLERK_SECRET_KEY') as string,
                 });
 
                 // Set user data first - this is the core authentication
