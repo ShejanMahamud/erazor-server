@@ -6,11 +6,10 @@ import { ImageGateway } from './image.gateway';
 import { ImagesController } from './images.controller';
 import { ImagesService } from './images.service';
 import { ImageProcessor } from './processors/image.processor';
-import { SseService } from './sse.service';
 
 @Module({
   imports: [QueueModule, NotificationModule, BillingModule],
   controllers: [ImagesController],
-  providers: [ImagesService, ImageGateway, ImageProcessor, SseService],
+  providers: [ImagesService, ImageGateway, ImageProcessor],
 })
 export class ImagesModule { }

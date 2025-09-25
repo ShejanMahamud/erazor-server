@@ -17,14 +17,12 @@ import { RateLimitGuard } from 'src/guards/rate-limit.guard';
 import { RolesGuard } from 'src/guards/roles.guard';
 import { ActiveSubscriptionGuard } from 'src/guards/subscription-status.guard';
 import { ImagesService } from './images.service';
-import { SseService } from './sse.service';
 
 @ApiTags('Images')
 @Controller('images')
 export class ImagesController {
   constructor(
     private readonly imagesService: ImagesService,
-    private readonly sseService: SseService
   ) { }
 
   @UseGuards(OptionalClerkGuard, RateLimitGuard(20, 60, 3), ActiveSubscriptionGuard, HasCreditGuard)
