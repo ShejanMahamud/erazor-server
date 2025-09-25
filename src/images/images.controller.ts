@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, DefaultValuePipe, Delete, Get, Param, ParseIntPipe, Post, Query, Req, Sse, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Controller, DefaultValuePipe, Delete, Get, Param, ParseIntPipe, Post, Query, Req, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags } from '@nestjs/swagger';
 import { randomUUID } from 'crypto';
@@ -6,7 +6,6 @@ import type { Request } from 'express';
 import { ImageStatus, Permissions, Roles } from 'generated/prisma';
 import { diskStorage } from 'multer';
 import { extname } from 'path/win32';
-import { Observable } from 'rxjs';
 import { FileSizeLimitInterceptor } from 'src/common/interceptors/subscription-file-validation';
 import { PermissionsRequired } from 'src/decorators/permissions.decorator';
 import { RolesRequired } from 'src/decorators/roles.decorator';
@@ -52,29 +51,6 @@ export class ImagesController {
   processImage(@Req() req: Request, @UploadedFile() file: Express.Multer.File) {
     return this.imagesService.processImage(req.user.sub, file);
   }
-
-  @UseGuards(OptionalClerkGuard)
-  @Sse('updates/:userId')
-  imageUpdates(@Param('userId') userId: string, @Req() req: Request): Observable<MessageEvent> {
-    if (req.user?.sub !== userId) {
-      throw new BadRequestException('You can only subscribe to your own updates');
-    }
-
-    const stream = this.sseService.getOrCreateStream(userId);
-    const stream$ = stream.asObservable();
-
-    // Listen for client disconnect
-    req.on('close', () => {
-      this.sseService.closeStream(userId);
-    });
-
-    return stream$;
-  }
-
-  pushUpdate(userId: string, data: any) {
-    this.sseService.pushUpdate(userId, data);
-  }
-
 
   @UseGuards(ClerkGuard)
   @Get('user/:id')
