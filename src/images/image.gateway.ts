@@ -2,7 +2,7 @@ import { Logger } from "@nestjs/common";
 import { ConnectedSocket, MessageBody, OnGatewayInit, SubscribeMessage, WebSocketGateway, WebSocketServer } from "@nestjs/websockets";
 import { Server, Socket } from 'socket.io';
 
-@WebSocketGateway({ namespace: 'images', cors: true })
+@WebSocketGateway({ namespace: 'image-update', cors: true })
 export class ImageGateway implements OnGatewayInit {
     private readonly logger = new Logger('ImageGateway');
     @WebSocketServer() server: Server;
