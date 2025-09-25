@@ -408,29 +408,6 @@
         ]
       }
     },
-    "/v1/api/images/updates/{userId}": {
-      "get": {
-        "operationId": "ImagesController_imageUpdates",
-        "parameters": [
-          {
-            "name": "userId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Images"
-        ]
-      }
-    },
     "/v1/api/images/user/{id}": {
       "get": {
         "operationId": "ImagesController_findAllImagesByUserId",

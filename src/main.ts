@@ -7,15 +7,30 @@ import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import { writeFileSync } from 'fs';
 import helmet from 'helmet';
+import { WinstonModule } from 'nest-winston';
+import * as winston from 'winston';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/all-exception.filter';
 import "./instrument";
 import { LoggerInterceptor } from './logger/logger.interceptor';
 import { SanitizePipe } from './pipes/sanitize.pipe';
 
-
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    logger: WinstonModule.createLogger({
+      transports: [
+        new winston.transports.Console({
+          format: winston.format.combine(
+            winston.format.colorize(),
+            winston.format.timestamp(),
+            winston.format.printf(({ level, message, timestamp }) => {
+              return `[${timestamp}] ${level}: ${message}`;
+            }),
+          ),
+        }),
+      ],
+    }),
+  });
 
   await useApitally(app, {
     clientId: "0b1a1ee3-3eb3-4618-b312-f0d66b9f28c5",
