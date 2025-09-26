@@ -8,6 +8,9 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      CI: true
+
 
     steps:
       - name: Checkout code
@@ -48,8 +51,8 @@ jobs:
       - name: Run Prisma migrations on server
         uses: appleboy/ssh-action@master
         with:
-          host: 20.40.57.36
-          username: johuniq
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             export PATH=$HOME/.nvm/versions/node/v22.19.0/bin:$PATH
@@ -61,8 +64,8 @@ jobs:
       - name: Restart PM2
         uses: appleboy/ssh-action@master
         with:
-          host: 20.40.57.36
-          username: johuniq
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             export PATH=$HOME/.nvm/versions/node/v22.19.0/bin:$PATH

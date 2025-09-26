@@ -51,16 +51,7 @@ export const RateLimitGuard = (limit = 10, ttl = 60, freeDailyLimit = 3): Type<C
                 const effectiveLimit = secondaryKey ? Math.floor(freeDailyLimit * 1.5) : freeDailyLimit; // Slightly higher for auth users
 
                 if (effectiveUsage > effectiveLimit) {
-                    let message;
-                    if (userId?.startsWith("anon-")) {
-                        message = `USAGE_LIMIT_REACHED`;
-                    } else if (secondaryUsage > primaryUsage) {
-                        message = `USAGE_LIMIT_REACHED`;
-                    } else {
-                        message = `USAGE_LIMIT_REACHED`;
-                    }
-
-                    throw new ForbiddenException(message);
+                    throw new ForbiddenException("USAGE_LIMIT_REACHED");
                 }
 
                 return true;
