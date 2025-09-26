@@ -53,11 +53,11 @@ export const RateLimitGuard = (limit = 10, ttl = 60, freeDailyLimit = 3): Type<C
                 if (effectiveUsage > effectiveLimit) {
                     let message;
                     if (userId?.startsWith("anon-")) {
-                        message = `Free limit reached (${freeDailyLimit} images/day). Please sign up to continue.`;
+                        message = `USAGE_LIMIT_REACHED`;
                     } else if (secondaryUsage > primaryUsage) {
-                        message = `IP-based limit reached (${effectiveLimit} images/day). Multiple accounts from same IP detected.`;
+                        message = `USAGE_LIMIT_REACHED`;
                     } else {
-                        message = `Free limit reached (${freeDailyLimit} images/day).`;
+                        message = `USAGE_LIMIT_REACHED`;
                     }
 
                     throw new ForbiddenException(message);
