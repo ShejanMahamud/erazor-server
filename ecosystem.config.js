@@ -84,7 +84,7 @@ module.exports = {
       // Source map support for better error tracking
       source_map_support: true,
       
-      // Cron restart for memory cleanup (daily at 3 AM)
+      // Cron restart for memory cleanup (daily at midnight)
       cron_restart: '0 0 * * * Asia/Dhaka',
       
       // Instance variables for cluster mode
