@@ -85,7 +85,7 @@ module.exports = {
       source_map_support: true,
       
       // Cron restart for memory cleanup (daily at midnight)
-      cron_restart: '0 0 * * * Asia/Dhaka',
+      cron_restart: '0 0 * * *',
       
       // Instance variables for cluster mode
       instance_var: 'INSTANCE_ID',
