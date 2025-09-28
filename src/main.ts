@@ -1,6 +1,7 @@
 import compression from '@fastify/compress';
 import cookie from '@fastify/cookie';
 import helmet from '@fastify/helmet';
+import multipart from '@fastify/multipart';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import {
@@ -20,7 +21,7 @@ import { SanitizePipe } from './pipes/sanitize.pipe';
 const fastifyCompression = compression;
 const fastifyCookie = cookie;
 const fastifyHelmet = helmet;
-
+const fastifyMultipart = multipart;
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter(), {
@@ -44,6 +45,14 @@ async function bootstrap() {
   await fastifyInstance.register(fastifyCookie as any, {
     secret: process.env.COOKIE_SECRET,
     hook: 'onRequest',
+  });
+
+  await fastifyInstance.register(fastifyMultipart as any, {
+    limits: {
+      fileSize: 20 * 1024 * 1024, // 20MB
+      files: 1,
+    },
+    addToBody: true,
   });
 
   await fastifyInstance.register(fastifyHelmet as any, {
