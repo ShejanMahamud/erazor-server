@@ -15,7 +15,7 @@ import FormData = require("form-data");
 type PollImagePayload = { processId: string, userId: string, attempt?: number };
 
 @Processor('image-processor', {
-    concurrency: 10, // Reduced to prevent overwhelming the system
+    concurrency: 10, // Increased to improve image processing throughput
 })
 export class ImageProcessor extends WorkerHost {
     private readonly logger = new Logger(ImageProcessor.name);
