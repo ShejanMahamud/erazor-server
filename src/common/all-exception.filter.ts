@@ -16,32 +16,31 @@ export class AllExceptionsFilter implements ExceptionFilter {
         const response = ctx.getResponse<FastifyReply>();
         const request = ctx.getRequest<FastifyRequest>();
 
-        // Default response
         let status = HttpStatus.INTERNAL_SERVER_ERROR;
-        let message = 'Internal server error';
+        let payload: any = {
+            success: false,
+            statusCode: status,
+            message: 'Internal server error',
+        };
 
         if (exception instanceof HttpException) {
             status = exception.getStatus();
             const res = exception.getResponse();
 
-            const responseMessage = (res as { message: string | string[] }).message;
-            message =
-                typeof res === 'string'
-                    ? res
-                    : Array.isArray(responseMessage)
-                        ? responseMessage.join(', ')
-                        : responseMessage || message;
+            if (typeof res === 'string') {
+                payload.message = res;
+                payload.statusCode = status;
+            } else if (typeof res === 'object') {
+                payload = { ...res, statusCode: status };
+            }
         } else if (exception instanceof Error) {
-            // Regular JS error (not HttpException)
-            message = exception.message;
+            payload.message = exception.message;
         }
 
         response.status(status).send({
-            success: false,
-            statusCode: status,
+            ...payload,
             path: request.url,
             timestamp: new Date().toISOString(),
-            message,
         });
     }
 }

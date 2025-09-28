@@ -29,7 +29,11 @@ export class UsersService implements IUserService {
     this.logger.log(`Attempting to create user with email ${createUserDto.email} and username ${createUserDto.username}`);
     if (isExisted) {
       this.logger.warn(`User with email ${createUserDto.email} and username ${createUserDto.username} already exists`);
-      throw new BadRequestException("User already exists");
+      throw new BadRequestException({
+        success: false,
+        message: "User already exists",
+        statusCode: 400,
+      });
     }
 
     const user = await this.prisma.user.create({
@@ -88,7 +92,11 @@ export class UsersService implements IUserService {
     this.logger.log(`Finding user with id ${id}`);
     if (!user) {
       this.logger.warn(`User with id ${id} not found`);
-      throw new NotFoundException("User not found");
+      throw new NotFoundException({
+        success: false,
+        message: "User not found",
+        statusCode: 404,
+      });
     }
     this.logger.log(`User with id ${id} found`);
     return {
@@ -105,7 +113,11 @@ export class UsersService implements IUserService {
 
     if (!data) {
       this.logger.warn(`User with id ${id} not found`);
-      throw new NotFoundException("User not found");
+      throw new NotFoundException({
+        success: false,
+        message: "User not found",
+        statusCode: 404,
+      });
     }
 
     // Update using the actual user id
@@ -178,7 +190,11 @@ export class UsersService implements IUserService {
     const { data } = await this.findUserById(userId);
     if (!data) {
       this.logger.warn(`User with id ${userId} not found`);
-      throw new NotFoundException("User not found");
+      throw new NotFoundException({
+        success: false,
+        message: "User not found",
+        statusCode: 404,
+      });
     }
     const logs = await this.clerkClient.sessions.getSessionList({
       userId: data.id,
@@ -216,7 +232,11 @@ export class UsersService implements IUserService {
 
       if (!user) {
         this.logger.warn(`User with id ${id} not found`);
-        throw new NotFoundException("User not found");
+        throw new NotFoundException({
+          success: false,
+          message: "User not found",
+          statusCode: 404,
+        });
       }
 
       // Get current date for calculations
@@ -433,7 +453,11 @@ export class UsersService implements IUserService {
       if (error instanceof NotFoundException) {
         throw error;
       }
-      throw new BadRequestException("Failed to fetch dashboard statistics");
+      throw new BadRequestException({
+        success: false,
+        message: "Failed to fetch dashboard stats",
+        statusCode: 400,
+      });
     }
   }
 

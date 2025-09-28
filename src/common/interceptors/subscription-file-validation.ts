@@ -18,7 +18,11 @@ export class FileSizeLimitInterceptor implements NestInterceptor {
             const sizeInMB = req.file.size / (1024 * 1024);
             if (sizeInMB > MAX_FILE_SIZE) {
                 throw new BadRequestException(
-                    `File size exceeds the limit of ${MAX_FILE_SIZE / (1024 * 1024)}MB.`
+                    {
+                        success: false,
+                        message: `File size exceeds the limit of ${MAX_FILE_SIZE}MB.`,
+                        statusCode: 400,
+                    }
                 );
             }
             return next.handle();
@@ -32,7 +36,11 @@ export class FileSizeLimitInterceptor implements NestInterceptor {
                 const sizeInMB = req.file.size / (1024 * 1024);
                 if (sizeInMB > MAX_FILE_SIZE) {
                     throw new BadRequestException(
-                        `File size exceeds the limit of ${MAX_FILE_SIZE / (1024 * 1024)}MB.`
+                        {
+                            success: false,
+                            message: `File size exceeds the limit of ${MAX_FILE_SIZE / (1024 * 1024)}MB.`,
+                            statusCode: 400,
+                        }
                     );
                 }
                 return next.handle();
@@ -43,7 +51,11 @@ export class FileSizeLimitInterceptor implements NestInterceptor {
             })
             // Check if customer has active subscriptions
             if (!customer.activeSubscriptions || customer.activeSubscriptions.length === 0) {
-                throw new BadRequestException('Customer does not have an active subscription');
+                throw new BadRequestException({
+                    success: false,
+                    message: 'Customer has no active subscriptions',
+                    statusCode: 400,
+                });
             }
             //find the correct product
             const product = await this.polarClient.products.get({
@@ -51,7 +63,11 @@ export class FileSizeLimitInterceptor implements NestInterceptor {
             })
             // Check if metadata exists and has file_size_limit
             if (!product.metadata?.file_size_limit) {
-                throw new BadRequestException('File size limit not configured for this plan');
+                throw new BadRequestException({
+                    success: false,
+                    message: 'Product has no file size limit',
+                    statusCode: 400,
+                });
             }
             const MAX_FILE_SIZE = parseInt(product.metadata?.file_size_limit as string);
 
@@ -59,7 +75,11 @@ export class FileSizeLimitInterceptor implements NestInterceptor {
             await this.redisClient.set(`user:${req.user.sub}:file_size_limit`, MAX_FILE_SIZE, 'EX', 60 * 5);
             const sizeInMB = req.file.size / (1024 * 1024);
             if (sizeInMB > MAX_FILE_SIZE) {
-                throw new BadRequestException(`File size exceeds the limit of ${MAX_FILE_SIZE / (1024 * 1024)}MB.`);
+                throw new BadRequestException({
+                    success: false,
+                    message: `File size exceeds the limit of ${MAX_FILE_SIZE / (1024 * 1024)}MB.`,
+                    statusCode: 400,
+                });
             }
 
             return next.handle();
@@ -68,7 +88,11 @@ export class FileSizeLimitInterceptor implements NestInterceptor {
             if (err instanceof BadRequestException) {
                 throw err;
             }
-            throw new BadRequestException('Failed to validate file size limit');
+            throw new BadRequestException({
+                success: false,
+                message: 'Failed to validate file size limit',
+                statusCode: 400,
+            });
         }
     }
 }

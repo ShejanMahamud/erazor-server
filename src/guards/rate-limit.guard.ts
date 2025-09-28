@@ -51,7 +51,11 @@ export const RateLimitGuard = (limit = 10, ttl = 60, freeDailyLimit = 3): Type<C
                 const effectiveLimit = secondaryKey ? Math.floor(freeDailyLimit * 1.5) : freeDailyLimit; // Slightly higher for auth users
 
                 if (effectiveUsage > effectiveLimit) {
-                    throw new ForbiddenException("USAGE_LIMIT_REACHED");
+                    throw new ForbiddenException({
+                        success: false,
+                        message: 'USAGE_LIMIT_EXCEEDED',
+                        statusCode: 429,
+                    });
                 }
 
                 return true;

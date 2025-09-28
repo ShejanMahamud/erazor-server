@@ -36,8 +36,11 @@ export class HasCreditGuard implements CanActivate {
             return meter.activeMeters.some(m => m.balance > 0 || m.creditedUnits > m.consumedUnits);
         }
         catch (err) {
-            console.error('Polar API error in HasCreditGuard:', err);
-            throw new BadRequestException(`Failed to validate credit status: ${err.message || err}`);
+            throw new BadRequestException({
+                success: false,
+                message: 'Failed to validate credit status',
+                statusCode: 400,
+            });
         }
     }
 }

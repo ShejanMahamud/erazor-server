@@ -10,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { Polar } from '@polar-sh/sdk';
 import { createHash } from 'crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import Redis from 'ioredis';
 import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
@@ -20,6 +21,7 @@ export class OptionalClerkGuard implements CanActivate {
         @Inject('CLERK_CLIENT') private readonly clerkClient: ClerkClient,
         @Inject('POLAR_CLIENT') private readonly polarClient: Polar,
         private readonly configService: ConfigService,
+        @Inject('REDIS_CLIENT') private readonly redisClient: Redis,
     ) { }
 
     async canActivate(ctx: ExecutionContext): Promise<boolean> {
@@ -61,7 +63,13 @@ export class OptionalClerkGuard implements CanActivate {
                 // Set user data first - this is the core authentication
                 req['user'] = { ...payload };
                 this.logger.debug(`Clerk authentication successful for user: ${payload.sub}`);
-
+                //Get subscription status from redis first
+                const cachedIsPaid = await this.redisClient.get(`user:${payload.sub}:is_paid`);
+                if (cachedIsPaid) {
+                    req['user']['isPaid'] = cachedIsPaid === 'true';
+                    req['user']['freeUser'] = cachedIsPaid !== 'true';
+                    return true;
+                }
                 // Try to get subscription info, but don't fail auth if it errors
                 try {
                     const subscription = await this.polarClient.customers.getStateExternal({
@@ -69,8 +77,9 @@ export class OptionalClerkGuard implements CanActivate {
                     });
                     if (subscription.activeSubscriptions?.length) {
                         req['user']['isPaid'] = subscription.activeSubscriptions[0].amount > 0;
-                    } else {
-                        req['user']['freeUser'] = true;
+                        req['user']['freeUser'] = subscription.activeSubscriptions[0].amount === 0;
+                        // Cache for 5 minutes
+                        await this.redisClient.set(`user:${payload.sub}:is_paid`, req['user']['isPaid'] ? 'true' : 'false', 'EX', 300);
                     }
                 } catch (subscriptionError) {
                     this.logger.warn(`Failed to fetch subscription data for user ${payload.sub}: ${subscriptionError.message}`);
