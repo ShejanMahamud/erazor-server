@@ -2,7 +2,7 @@ import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config';
 import { Polar } from '@polar-sh/sdk';
 import { validateEvent, WebhookVerificationError } from '@polar-sh/sdk/webhooks';
-import type { Request } from 'express';
+import { FastifyRequest } from 'fastify';
 import { NotificationGateway } from 'src/notification/notification.gateway';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { IGlobalRes } from 'src/types';
@@ -196,7 +196,7 @@ export class BillingService implements IBillingService {
     }
   }
 
-  async handleWebhookEvent(req: Request): Promise<IGlobalRes<any>> {
+  async handleWebhookEvent(req: FastifyRequest): Promise<IGlobalRes<any>> {
     try {
       const headers: Record<string, string> = {};
       for (const [key, value] of Object.entries(req.headers)) {
@@ -206,7 +206,7 @@ export class BillingService implements IBillingService {
       }
 
       const event = validateEvent(
-        req.body,
+        (req as any).rawBody,
         headers,
         this.config.get<string>('POLAR_WEBHOOK_SECRET') as string,
       )

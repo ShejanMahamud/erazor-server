@@ -1,5 +1,5 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Inject, Injectable, Type } from "@nestjs/common";
-import type { Request } from 'express';
+import type { FastifyRequest } from 'fastify';
 import Redis from "ioredis";
 import { REDIS_CLIENT } from "src/queue/queue.module";
 export const RateLimitGuard = (limit = 10, ttl = 60, freeDailyLimit = 3): Type<CanActivate> => {
@@ -9,8 +9,8 @@ export const RateLimitGuard = (limit = 10, ttl = 60, freeDailyLimit = 3): Type<C
         }
 
         async canActivate(ctx: ExecutionContext): Promise<boolean> {
-            const req = ctx.switchToHttp().getRequest<Request>();
-            const userId = req.user?.sub;
+            const req = ctx.switchToHttp().getRequest<FastifyRequest>();
+            const userId = req?.user?.sub;
             const today = new Date().toISOString().slice(0, 10);
             const identifier = userId ?? req.ip;
 
@@ -56,7 +56,7 @@ export const RateLimitGuard = (limit = 10, ttl = 60, freeDailyLimit = 3): Type<C
 
                 return true;
             }
-            const routeKey = `${req.method}:${req.path}`;
+            const routeKey = `${req.method}:${req.url}`;
             const key = `rate-limit:${identifier}:${routeKey}`;
             const current = await this.redisClient.incr(key);
             if (current === 1) {

@@ -1,4 +1,4 @@
-import type { Request } from 'express';
+import type { FastifyRequest } from 'fastify';
 import { IGlobalRes } from "src/types";
 
 export interface IBillingService {
@@ -25,7 +25,7 @@ export interface IBillingService {
     getInvoiceById(invoiceId: string): Promise<IGlobalRes<any>>;
 
     // Webhooks & Events
-    handleWebhookEvent(req: Request): Promise<IGlobalRes<any>>;
+    handleWebhookEvent(req: FastifyRequest): Promise<IGlobalRes<any>>;
 
     // Analytics
     getRevenueAnalytics(startDate?: Date, endDate?: Date): Promise<IGlobalRes<any>>;

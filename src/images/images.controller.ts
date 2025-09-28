@@ -2,7 +2,7 @@ import { BadRequestException, Controller, DefaultValuePipe, Delete, Get, Param, 
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags } from '@nestjs/swagger';
 import { randomUUID } from 'crypto';
-import type { Request } from 'express';
+import type { FastifyRequest } from 'fastify';
 import { ImageStatus, Permissions, Roles } from 'generated/prisma';
 import { diskStorage } from 'multer';
 import { extname } from 'path/win32';
@@ -46,7 +46,7 @@ export class ImagesController {
       }
     }
   }), FileSizeLimitInterceptor)
-  processImage(@Req() req: Request, @UploadedFile() file: Express.Multer.File) {
+  processImage(@Req() req: FastifyRequest, @UploadedFile() file: Express.Multer.File) {
     return this.imagesService.processImage(req.user.sub, file);
   }
 

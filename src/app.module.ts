@@ -1,4 +1,5 @@
 import {
+  ArcjetGuard,
   ArcjetModule,
   detectBot,
   fixedWindow,
@@ -7,6 +8,7 @@ import {
 import { HttpModule } from '@nestjs/axios';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
 import { TerminusModule } from '@nestjs/terminus';
 import { SentryModule } from '@sentry/nestjs/setup';
 import { AdminModule } from './admin/admin.module';
@@ -56,7 +58,7 @@ import { UsersModule } from './users/users.module';
           mode: 'LIVE',
           window: '30d',
           max: 10,
-          characteristics: ['/images/remove-bg'],
+          characteristics: ['/dashboard/background-remove', '/'],
         }),
       ],
     })
@@ -72,10 +74,10 @@ import { UsersModule } from './users/users.module';
   ],
   controllers: [AppController],
   providers: [
-    // {
-    //   provide: APP_GUARD,
-    //   useClass: ArcjetGuard,
-    // },
+    {
+      provide: APP_GUARD,
+      useClass: ArcjetGuard,
+    },
   ],
 })
 export class AppModule { }

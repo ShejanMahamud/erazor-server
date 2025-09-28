@@ -1,9 +1,8 @@
 
 import { Controller, Get, Req } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { ApiExcludeController } from '@nestjs/swagger';
 import { HealthCheckService, HttpHealthIndicator, PrismaHealthIndicator } from '@nestjs/terminus';
-import type { Request } from 'express';
+import type { FastifyRequest } from 'fastify';
 import { PrismaService } from './prisma/prisma.service';
 import { getSystemInfoJson } from './utils/system-info';
 
@@ -15,30 +14,28 @@ export class AppController {
     private db: PrismaHealthIndicator,
     private http: HttpHealthIndicator,
     private prisma: PrismaService,
-    private readonly config: ConfigService
-  ) {
-
-
-  }
+  ) { }
 
   @Get()
-  getHello(@Req() req: Request) {
+  getHello(@Req() req: FastifyRequest) {
+    const protocol = req.protocol;
+    const host = req.headers.host;
     return {
       success: true,
       message: 'Server is running',
       data: {
-        api_docs: req.protocol + '://' + req.get('host') + '/v1/api/docs',
-        health: req.protocol + '://' + req.get('host') + '/v1/api/health',
+        api_docs: protocol + '://' + host + '/v1/api/docs',
+        health: protocol + '://' + host + '/v1/api/health',
       },
     };
   }
 
   @Get('health')
-  async getHealth(@Req() req: Request) {
+  async getHealth(@Req() req: FastifyRequest) {
     const system = getSystemInfoJson();
     const health = await this.health.check([
       () => this.db.pingCheck('database', this.prisma),
-      () => this.http.pingCheck('api', `${req.protocol}://${req.get('host')}/v1/api`),
+      () => this.http.pingCheck('api', `${req.protocol}://${req.headers.host}/v1/api`),
     ]);
     return {
       success: true,

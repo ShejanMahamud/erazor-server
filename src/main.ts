@@ -1,12 +1,16 @@
+import compression from '@fastify/compress';
+import type { FastifyCookieOptions } from '@fastify/cookie';
+import fastifyCookie from '@fastify/cookie';
+import helmet from '@fastify/helmet';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import {
+  FastifyAdapter,
+  NestFastifyApplication,
+} from '@nestjs/platform-fastify';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { useApitally } from "apitally/nestjs";
-import * as bodyParser from 'body-parser';
-import compression from 'compression';
-import cookieParser from 'cookie-parser';
 import { writeFileSync } from 'fs';
-import helmet from 'helmet';
 import { WinstonModule } from 'nest-winston';
 import * as winston from 'winston';
 import { AppModule } from './app.module';
@@ -15,8 +19,9 @@ import "./instrument";
 import { LoggerInterceptor } from './logger/logger.interceptor';
 import { SanitizePipe } from './pipes/sanitize.pipe';
 
+
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter(), {
     logger: WinstonModule.createLogger({
       transports: [
         new winston.transports.Console({
@@ -32,6 +37,11 @@ async function bootstrap() {
     }),
   });
 
+  await app.register(fastifyCookie, {
+    secret: process.env.COOKIE_SECRET,
+    hook: 'onRequest',
+  }) as FastifyCookieOptions;
+
   await useApitally(app, {
     clientId: "0b1a1ee3-3eb3-4618-b312-f0d66b9f28c5",
     env: "prod", // or "dev"
@@ -46,24 +56,15 @@ async function bootstrap() {
     },
   });
 
-  app.use(compression({
-    level: 6,
-    threshold: 1024,
-    filter: (req, res) => {
-      if (req.headers['x-no-compression']) {
-        return false;
-      }
-      return compression.filter(req, res);
-    }
-  }));
+  await app.register(compression, { encodings: ['gzip', 'deflate'] });
 
-  app.use(cookieParser());
   app.enableCors({
-    origin: [process.env.CORS_ORIGIN, 'http://localhost:3000'],
+    origin: [process.env.CORS_ORIGIN!, 'http://localhost:3000'],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Authorization', 'Content-Type'],
     credentials: true,
   });
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -77,7 +78,7 @@ async function bootstrap() {
     new SanitizePipe()
   );
   app.useGlobalFilters(new AllExceptionsFilter());
-  app.use(helmet({
+  await app.register(helmet, {
     crossOriginEmbedderPolicy: false,
     contentSecurityPolicy: {
       directives: {
@@ -86,18 +87,10 @@ async function bootstrap() {
         scriptSrc: ["'self'"],
         imgSrc: ["'self'", "data:", "https:"],
       }
-    }
-  }));
+    },
+    frameguard: false,
+  });
 
-  app.use(bodyParser.json({
-    limit: '50kb',
-    type: ['application/json', 'text/json']
-  }));
-  app.use(bodyParser.urlencoded({
-    limit: '50kb',
-    extended: true,
-    parameterLimit: 100
-  }));
   app.setGlobalPrefix('v1/api');
 
 
