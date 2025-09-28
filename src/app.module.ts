@@ -56,9 +56,9 @@ import { UsersModule } from './users/users.module';
         }),
         fixedWindow({
           mode: 'LIVE',
-          window: '30d',
-          max: 10,
-          characteristics: ['/dashboard/background-remove', '/'],
+          window: '1d',
+          max: 3,
+          characteristics: ['/dashboard/background-remover', '/'],
         }),
       ],
     })

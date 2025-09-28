@@ -15,7 +15,7 @@ import FormData = require("form-data");
 type PollImagePayload = { processId: string, userId: string, attempt?: number };
 
 @Processor('image-processor', {
-    concurrency: 2, // Reduced to prevent overwhelming the system
+    concurrency: 10, // Reduced to prevent overwhelming the system
 })
 export class ImageProcessor extends WorkerHost {
     private readonly logger = new Logger(ImageProcessor.name);
@@ -399,7 +399,7 @@ export class ImageProcessor extends WorkerHost {
         const targetUserId = userId || image.ownerId;
         if (targetUserId) {
             this.imageSocket.sendImageUpdate(targetUserId, updatedImage);
-            this.logger.log(`Sent SSE update for ${targetUserId}`);
+            this.logger.log(`Sent image update for ${targetUserId}`);
         }
 
         // Clear cache
