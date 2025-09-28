@@ -206,7 +206,7 @@ export class BillingService implements IBillingService {
       }
 
       const event = validateEvent(
-        req.body as string,
+        (req as any).rawBody,
         headers,
         this.config.get<string>('POLAR_WEBHOOK_SECRET') as string,
       )

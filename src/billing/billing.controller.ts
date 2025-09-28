@@ -116,7 +116,7 @@ export class BillingController {
 
   // Webhook endpoint (no auth needed for webhooks)
   @Post('webhook')
-  handleWebhook(req: FastifyRequest) {
+  handleWebhook(@Req() req: FastifyRequest) {
     return this.billingService.handleWebhookEvent(req);
   }
 }

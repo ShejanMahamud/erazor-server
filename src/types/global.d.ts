@@ -1,3 +1,4 @@
+import { CookieSerializeOptions } from '@fastify/cookie';
 import 'fastify';
 import { JwtPayload } from 'jsonwebtoken';
 
@@ -9,6 +10,7 @@ export interface CustomJwtSessionClaims {
 
 declare module 'fastify' {
     interface FastifyRequest {
+        cookies: { [key: string]: string };
         user?: JwtPayload &
         CustomJwtSessionClaims & {
             azp: string;
@@ -25,5 +27,13 @@ declare module 'fastify' {
             isPaid?: boolean;
             freeUser?: boolean;
         };
+    }
+
+    interface FastifyReply {
+        setCookie(
+            name: string,
+            value: string,
+            options?: CookieSerializeOptions
+        ): this;
     }
 }

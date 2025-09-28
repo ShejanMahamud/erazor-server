@@ -94,7 +94,7 @@ export class OptionalClerkGuard implements CanActivate {
 
     private generateAnonymousId(req: FastifyRequest, res: FastifyReply): string {
         // Check cookie first (using Fastify's way to access cookies)
-        const anonIdCookie = (req as any).cookies?.anon_id;
+        const anonIdCookie = req.cookies?.anon_id;
         if (anonIdCookie) {
             return anonIdCookie;
         }
@@ -114,7 +114,7 @@ export class OptionalClerkGuard implements CanActivate {
         }
 
         // Persist via cookie (using Fastify's cookie method)
-        (res as any).setCookie('anon_id', anonId, {
+        res.setCookie('anon_id', anonId, {
             httpOnly: true,
             maxAge: 365 * 24 * 60 * 60 * 1000,
             sameSite: 'lax',
