@@ -9,7 +9,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Polar } from '@polar-sh/sdk';
 import { createHash } from 'crypto';
-import { Request, Response } from 'express';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
@@ -23,12 +23,12 @@ export class OptionalClerkGuard implements CanActivate {
     ) { }
 
     async canActivate(ctx: ExecutionContext): Promise<boolean> {
-        const req = ctx.switchToHttp().getRequest<Request>();
-        const res = ctx.switchToHttp().getResponse<Response>();
+        const req = ctx.switchToHttp().getRequest<FastifyRequest>();
+        const res = ctx.switchToHttp().getResponse<FastifyReply>();
 
         // Build full URL for Clerk
         const protocol = req.protocol;
-        const host = req.get('host');
+        const host = req.host;
         const fullUrl = `${protocol}://${host}${req.originalUrl || req.url}`;
 
         // Clerk expects a fetch-like request
@@ -92,10 +92,11 @@ export class OptionalClerkGuard implements CanActivate {
         return true;
     }
 
-    private generateAnonymousId(req: Request, res: Response): string {
-        // Check cookie first
-        if (req.cookies['anon_id']) {
-            return req.cookies['anon_id'];
+    private generateAnonymousId(req: FastifyRequest, res: FastifyReply): string {
+        // Check cookie first (using Fastify's way to access cookies)
+        const anonIdCookie = (req as any).cookies?.anon_id;
+        if (anonIdCookie) {
+            return anonIdCookie;
         }
 
         // Otherwise generate new one
@@ -112,8 +113,8 @@ export class OptionalClerkGuard implements CanActivate {
             anonId = `anon-${hash}`;
         }
 
-        // Persist via cookie
-        res.cookie('anon_id', anonId, {
+        // Persist via cookie (using Fastify's cookie method)
+        (res as any).setCookie('anon_id', anonId, {
             httpOnly: true,
             maxAge: 365 * 24 * 60 * 60 * 1000,
             sameSite: 'lax',

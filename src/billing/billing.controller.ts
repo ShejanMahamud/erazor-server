@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
-import type { Request } from 'express';
+import type { FastifyRequest } from 'fastify';
 import { Permissions, Roles } from 'generated/prisma';
 import { PermissionsRequired } from 'src/decorators/permissions.decorator';
 import { RolesRequired } from 'src/decorators/roles.decorator';
@@ -26,7 +26,7 @@ export class BillingController {
   // Checkout & Subscriptions
   @UseGuards(ClerkGuard)
   @Post('checkout/create')
-  createCheckoutSession(@Body() body: { productId: string }, @Req() req: Request) {
+  createCheckoutSession(@Body() body: { productId: string }, @Req() req: FastifyRequest) {
     return this.billingService.createCheckoutSession(body.productId, req.user.sub);
   }
 
@@ -116,8 +116,7 @@ export class BillingController {
 
   // Webhook endpoint (no auth needed for webhooks)
   @Post('webhook')
-  handleWebhook(@Body() webhookData: any, req: Request) {
-    const eventType = webhookData.type || webhookData.event_type;
+  handleWebhook(req: FastifyRequest) {
     return this.billingService.handleWebhookEvent(req);
   }
 }

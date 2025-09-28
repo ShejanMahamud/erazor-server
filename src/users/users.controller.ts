@@ -1,4 +1,4 @@
-import { Body, Controller, DefaultValuePipe, Get, Param, ParseIntPipe, Patch, Post, Query, SetMetadata, UseGuards } from '@nestjs/common';
+import { Body, Controller, DefaultValuePipe, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { Permissions, Roles, VerificationStatus } from 'generated/prisma';
 import { PermissionsRequired } from 'src/decorators/permissions.decorator';
 import { RolesRequired } from 'src/decorators/roles.decorator';
@@ -14,7 +14,6 @@ import { UsersService } from './users.service';
 export class UsersController {
   constructor(private readonly usersService: UsersService) { }
 
-  @SetMetadata('skipArcjet', true)
   @Post()
   create(@Body() createUserDto: CreateUserDto) {
     return this.usersService.createUser(createUserDto);
