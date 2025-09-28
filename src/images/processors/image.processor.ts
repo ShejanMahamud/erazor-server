@@ -7,7 +7,6 @@ import { Job, Queue } from "bullmq";
 import { createReadStream } from 'fs';
 import * as fs from 'fs/promises';
 import Redis from "ioredis";
-import { NotificationGateway } from "src/notification/notification.gateway";
 import { PrismaService } from "src/prisma/prisma.service";
 import { REDIS_CLIENT } from "src/queue/queue.module";
 import { ImageGateway } from "../image.gateway";
@@ -28,7 +27,6 @@ export class ImageProcessor extends WorkerHost {
         @InjectQueue('image-processor') private readonly imageProcessorQueue: Queue,
         private readonly imageSocket: ImageGateway,
         @Inject('POLAR_CLIENT') private readonly polarClient: Polar,
-        private readonly notificationGateway: NotificationGateway,
         @Inject(REDIS_CLIENT) private readonly redisClient: Redis
     ) {
         super();
@@ -243,13 +241,13 @@ export class ImageProcessor extends WorkerHost {
                 originalImageUrlHQ: data.source.url,
             }
         });
-        if (!anonUser) {
-            await this.notificationGateway.sendNotification({
-                userId: job.data.userId,
-                type: 'INFO',
-                message: `Your image ${job.data.file.originalname} is being processed.`,
-            })
-        }
+        // if (!anonUser) {
+        //     await this.notificationGateway.sendNotification({
+        //         userId: job.data.userId,
+        //         type: 'INFO',
+        //         message: `Your image ${job.data.file.originalname} is being processed.`,
+        //     })
+        // }
         await this.imageProcessorQueue.add('poll-image', {
             processId: data.id,
             userId: job.data.userId
@@ -387,11 +385,11 @@ export class ImageProcessor extends WorkerHost {
                 });
 
                 // Send completion notification
-                await this.notificationGateway.sendNotification({
-                    userId: image.ownerId,
-                    type: 'INFO',
-                    message: `Your image ${image.originalFileName} has been processed successfully.`,
-                });
+                // await this.notificationGateway.sendNotification({
+                //     userId: image.ownerId,
+                //     type: 'INFO',
+                //     message: `Your image ${image.originalFileName} has been processed successfully.`,
+                // });
             } catch (error) {
                 this.logger.warn(`Failed to send analytics/notification for ${image.ownerId}:`, error);
             }
@@ -419,13 +417,13 @@ export class ImageProcessor extends WorkerHost {
         });
 
         // Notify user of timeout
-        if (image.ownerId) {
-            await this.notificationGateway.sendNotification({
-                userId: image.ownerId,
-                type: 'WARNING',
-                message: `Processing of ${image.originalFileName} is taking longer than expected. Please try again later.`,
-            });
-        }
+        // if (image.ownerId) {
+        //     await this.notificationGateway.sendNotification({
+        //         userId: image.ownerId,
+        //         type: 'WARNING',
+        //         message: `Processing of ${image.originalFileName} is taking longer than expected. Please try again later.`,
+        //     });
+        // }
     }
 
     // Handle processing failure
@@ -439,13 +437,13 @@ export class ImageProcessor extends WorkerHost {
         });
 
         // Notify user of failure
-        if (image.ownerId) {
-            await this.notificationGateway.sendNotification({
-                userId: image.ownerId,
-                type: 'ALERT',
-                message: `Failed to process ${image.originalFileName}. Please try uploading again.`,
-            });
-        }
+        // if (image.ownerId) {
+        //     await this.notificationGateway.sendNotification({
+        //         userId: image.ownerId,
+        //         type: 'ALERT',
+        //         message: `Failed to process ${image.originalFileName}. Please try uploading again.`,
+        //     });
+        // }
     }
 
     // Check if error is retryable
