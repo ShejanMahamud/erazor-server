@@ -39,7 +39,7 @@ jobs:
           username: ${{ secrets.SERVER_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           source: '.'
-          target: '/home/erazor_admin/erazor-server'
+          target: '/home/erazorai/erazor-server'
           strip_components: 1
           exclude: |
             erazor-server/node_modules
@@ -56,7 +56,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             export PATH=$HOME/.nvm/versions/node/v22.19.0/bin:$PATH
-            cd /home/erazor_admin/erazor-server
+            cd /home/erazorai/erazor-server
             pnpm install --frozen-lockfile
             pnpm prisma generate
             pnpm prisma migrate deploy
