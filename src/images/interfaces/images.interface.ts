@@ -23,3 +23,12 @@ export interface IImageService {
     findAllImages(limit: number, cursor?: string, search?: string, status?: ImageStatus): Promise<IGlobalRes<IImage[], IGlobalMeta>>;
     findImageById(id: string): Promise<IGlobalRes<IImage | null>>;
 }
+
+export interface ProcessedFile {
+    filename: string;
+    originalname: string;
+    mimetype: string;
+    size: number;
+    path: string;
+    buffer?: Buffer;
+}

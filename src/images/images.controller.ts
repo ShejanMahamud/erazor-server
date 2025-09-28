@@ -1,12 +1,10 @@
-import { BadRequestException, Controller, DefaultValuePipe, Delete, Get, Param, ParseIntPipe, Post, Query, Req, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { BadRequestException, Controller, DefaultValuePipe, Delete, Get, Param, ParseIntPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { randomUUID } from 'crypto';
 import type { FastifyRequest } from 'fastify';
+import * as fs from 'fs/promises';
 import { ImageStatus, Permissions, Roles } from 'generated/prisma';
-import { diskStorage } from 'multer';
 import { extname } from 'path/win32';
-import { FileSizeLimitInterceptor } from 'src/common/interceptors/subscription-file-validation';
 import { PermissionsRequired } from 'src/decorators/permissions.decorator';
 import { RolesRequired } from 'src/decorators/roles.decorator';
 import { ClerkGuard } from 'src/guards/clerk.guard';
@@ -17,6 +15,7 @@ import { RateLimitGuard } from 'src/guards/rate-limit.guard';
 import { RolesGuard } from 'src/guards/roles.guard';
 import { ActiveSubscriptionGuard } from 'src/guards/subscription-status.guard';
 import { ImagesService } from './images.service';
+import { ProcessedFile } from './interfaces/images.interface';
 
 @ApiTags('Images')
 @Controller('images')
@@ -27,27 +26,58 @@ export class ImagesController {
 
   @UseGuards(OptionalClerkGuard, RateLimitGuard(20, 60, 3), ActiveSubscriptionGuard, HasCreditGuard)
   @Post('process')
-  @UseInterceptors(FileInterceptor('file', {
-    storage: diskStorage({
-      destination: '/tmp',
-      filename: (_, file, callback) => {
-        const uniqueName = randomUUID() + extname(file.originalname);
-        callback(null, uniqueName);
-      },
-    }),
-    limits: {
-      fileSize: 20 * 1024 * 1024,
-    },
-    fileFilter: (_, file, cb) => {
-      if (file.mimetype.match(/\/(jpg|jpeg|png|gif|bmp|tiff|webp)$/)) {
-        cb(null, true);
-      } else {
-        cb(new BadRequestException('Only image files are allowed!'), false);
+  async processImage(@Req() req: FastifyRequest) {
+    try {
+      // Check if request is multipart
+      if (!req.isMultipart()) {
+        throw new BadRequestException('Request must be multipart/form-data');
       }
+
+      // Get the file part from the multipart request
+      const data = await req.file();
+
+      if (!data) {
+        throw new BadRequestException('No file uploaded');
+      }
+
+      // Validate file type
+      if (!data.mimetype.match(/\/(jpg|jpeg|png|gif|bmp|tiff|webp)$/)) {
+        throw new BadRequestException('Only image files are allowed!');
+      }
+
+      // Read the file buffer
+      const buffer = await data.toBuffer();
+
+      // Check file size (20MB limit)
+      const maxSize = 20 * 1024 * 1024;
+      if (buffer.length > maxSize) {
+        throw new BadRequestException(`File too large. Maximum size is ${maxSize} bytes`);
+      }
+
+      // Generate unique filename
+      const uniqueName = randomUUID() + extname(data.filename || '');
+      const filePath = `/tmp/${uniqueName}`;
+
+      // Save file to disk
+      await fs.writeFile(filePath, buffer);
+
+      // Create file object compatible with your service
+      const processedFile: ProcessedFile = {
+        filename: uniqueName,
+        originalname: data.filename || '',
+        mimetype: data.mimetype,
+        size: buffer.length,
+        path: filePath,
+        buffer: buffer
+      };
+
+      return this.imagesService.processImage(req.user.sub, processedFile);
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException('Error processing file upload');
     }
-  }), FileSizeLimitInterceptor)
-  processImage(@Req() req: FastifyRequest, @UploadedFile() file: Express.Multer.File) {
-    return this.imagesService.processImage(req.user.sub, file);
   }
 
   @UseGuards(ClerkGuard)
