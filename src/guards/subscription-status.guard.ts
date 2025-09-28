@@ -5,15 +5,15 @@ import { REDIS_CLIENT } from "src/queue/queue.module";
 
 @Injectable()
 export class ActiveSubscriptionGuard implements CanActivate {
-    constructor(@Inject('POLAR_CLIENT') private readonly polarClient: Polar, @Inject(REDIS_CLIENT) private readonly redisClient: Redis) {
+    constructor(@Inject('POLAR_CLIENT') private readonly polarClient: Polar, @Inject(REDIS_CLIENT) private readonly redisClient: Redis,
+
+    ) {
 
     }
     async canActivate(context: ExecutionContext): Promise<boolean> {
         const req = context.switchToHttp().getRequest();
         const user = req.user;
         if (!user) return false;
-
-        console.log('Checking subscription status for user:', user);
 
         if (user.sub.startsWith('anon-')) {
             return true;
@@ -40,8 +40,11 @@ export class ActiveSubscriptionGuard implements CanActivate {
 
         }
         catch (err) {
-            console.error('Polar API error in ActiveSubscriptionGuard:', err);
-            throw new BadRequestException(`Failed to validate subscription status: ${err.message || err}`);
+            throw new BadRequestException({
+                success: false,
+                message: 'Failed to validate subscription status',
+                statusCode: 400,
+            });
         }
     }
 }

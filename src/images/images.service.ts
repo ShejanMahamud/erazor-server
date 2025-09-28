@@ -147,7 +147,11 @@ export class ImagesService implements IImageService {
     });
     if (!image) {
       this.logger.warn(`Image with id ${id} not found`);
-      throw new NotFoundException("Image not found");
+      throw new NotFoundException({
+        success: false,
+        message: "Image not found",
+        statusCode: 404,
+      });
     }
     this.logger.log(`Image with id ${id} found`);
     return {
@@ -164,7 +168,11 @@ export class ImagesService implements IImageService {
     });
     if (!image) {
       this.logger.warn(`Image with id ${id} not found`);
-      throw new NotFoundException("Image not found");
+      throw new NotFoundException({
+        success: false,
+        message: "Image not found",
+        statusCode: 404,
+      });
     }
     await this.prisma.image.delete({
       where: { id },

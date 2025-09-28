@@ -3,8 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import { Polar } from '@polar-sh/sdk';
 import { validateEvent, WebhookVerificationError } from '@polar-sh/sdk/webhooks';
 import { FastifyRequest } from 'fastify';
+import Redis from 'ioredis';
 import { NotificationGateway } from 'src/notification/notification.gateway';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { REDIS_CLIENT } from 'src/queue/queue.module';
 import { IGlobalRes } from 'src/types';
 import { IBillingService } from './interfaces/billing.interface';
 
@@ -12,7 +14,7 @@ import { IBillingService } from './interfaces/billing.interface';
 @Injectable()
 export class BillingService implements IBillingService {
   private readonly logger = new Logger(BillingService.name)
-  constructor(@Inject('POLAR_CLIENT') private readonly polarClient: Polar, private readonly notificationGateway: NotificationGateway, private readonly config: ConfigService, private readonly prisma: PrismaService) { }
+  constructor(@Inject('POLAR_CLIENT') private readonly polarClient: Polar, private readonly notificationGateway: NotificationGateway, private readonly config: ConfigService, private readonly prisma: PrismaService, @Inject(REDIS_CLIENT) private readonly redisClient: Redis) { }
 
   async findAllPlans(): Promise<IGlobalRes<any>> {
     const plans = await this.polarClient.products.list({ limit: 100 })
@@ -155,7 +157,11 @@ export class BillingService implements IBillingService {
         data: usage
       };
     } catch (error) {
-      throw new BadRequestException('Failed to fetch user usage');
+      throw new BadRequestException({
+        success: false,
+        message: "Failed to fetch user usage",
+        statusCode: 400,
+      });
     }
   }
 
@@ -212,7 +218,11 @@ export class BillingService implements IBillingService {
       )
       if (!event) {
         this.logger.error('Webhook signature verification failed.');
-        throw new BadRequestException('Invalid webhook signature');
+        throw new BadRequestException({
+          success: false,
+          message: 'Invalid webhook signature',
+          statusCode: 400,
+        });
       }
 
       const eventType = event.type;
@@ -228,11 +238,10 @@ export class BillingService implements IBillingService {
               currentPeriodEnd: new Date(eventData.current_period_end),
             }
           })
-          await this.notificationGateway.sendNotification({
-            userId: eventData?.customer?.external_id,
-            type: 'INFO',
-            message: `Your subscription has been created successfully!`,
-          })
+          //revalidate user subscription status in redis
+          await this.redisClient.del(`user:${eventData?.customer?.external_id}:has_active_subscription`);
+          await this.redisClient.del(`user:${eventData?.customer?.external_id}:is_paid`);
+
           break;
         case 'subscription.updated':
           await this.prisma.subscription.update({
@@ -242,11 +251,10 @@ export class BillingService implements IBillingService {
               currentPeriodEnd: new Date(eventData.current_period_end),
             }
           })
-          await this.notificationGateway.sendNotification({
-            userId: eventData.customer.externalId,
-            type: 'INFO',
-            message: `Your subscription has been updated successfully!`,
-          })
+          //revalidate user subscription status in redis
+          await this.redisClient.del(`user:${eventData?.customer?.external_id}:has_active_subscription`);
+          await this.redisClient.del(`user:${eventData?.customer?.external_id}:is_paid`);
+
           break;
         case 'subscription.active':
           await this.prisma.subscription.update({
@@ -256,12 +264,11 @@ export class BillingService implements IBillingService {
               currentPeriodEnd: new Date(eventData.current_period_end),
             }
           })
-          await this.notificationGateway.sendNotification({
-            userId: eventData.customer.externalId,
-            type: 'INFO',
-            message: `Your subscription has been activated.`,
-          })
+          //revalidate user subscription status in redis
+          await this.redisClient.del(`user:${eventData?.customer?.external_id}:has_active_subscription`);
+          await this.redisClient.del(`user:${eventData?.customer?.external_id}:is_paid`);
           break;
+
         case 'subscription.canceled':
           await this.prisma.subscription.update({
             where: { id: eventData?.id! as string },
@@ -270,34 +277,25 @@ export class BillingService implements IBillingService {
               currentPeriodEnd: new Date(eventData.current_period_end),
             }
           })
-          await this.notificationGateway.sendNotification({
-            userId: eventData.customer.externalId,
-            type: 'INFO',
-            message: `Your subscription has been canceled.`,
-          })
+          //revalidate user subscription status in redis
+          await this.redisClient.del(`user:${eventData?.customer?.external_id}:has_active_subscription`);
+          await this.redisClient.del(`user:${eventData?.customer?.external_id}:is_paid`);
+
           break;
+
         case 'benefit_grant.cycled':
 
-          await this.notificationGateway.sendNotification({
-            userId: eventData.customer.externalId,
-            type: 'INFO',
-            message: `Your subscription has been renewed.`,
-          })
+          //revalidate user subscription status in redis
+          await this.redisClient.del(`user:${eventData?.customer?.external_id}:has_active_subscription`);
+          await this.redisClient.del(`user:${eventData?.customer?.external_id}:is_paid`);
+
           break;
         case 'benefit_grant.revoked':
-          await this.notificationGateway.sendNotification({
-            userId: eventData.customer.externalId,
-            type: 'INFO',
-            message: `Your subscription has been revoked.`,
-          })
+          //revalidate user subscription status in redis
+          await this.redisClient.del(`user:${eventData?.customer?.external_id}:has_active_subscription`);
+          await this.redisClient.del(`user:${eventData?.customer?.external_id}:is_paid`);
           break;
-        case 'order.paid':
-          await this.notificationGateway.sendNotification({
-            userId: eventData.customer.externalId,
-            type: 'INFO',
-            message: `Your order has been paid successfully!`,
-          })
-          break;
+
         default:
           this.logger.error(`Unhandled webhook event type: ${eventType}`)
       }
@@ -310,7 +308,11 @@ export class BillingService implements IBillingService {
     } catch (error) {
       if (error instanceof WebhookVerificationError) {
         this.logger.error('Webhook signature verification failed.', error);
-        throw new BadRequestException('Invalid webhook signature');
+        throw new BadRequestException({
+          success: false,
+          message: 'Invalid webhook signature',
+          statusCode: 400,
+        });
       }
       return {
         success: false,

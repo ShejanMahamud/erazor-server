@@ -15,7 +15,11 @@ export class PermissionsGuard implements CanActivate {
 
         const hasPermission = ROLE_PERMISSIONS[user.metadata.role].includes(...requiredPermissions);
         if (!user || !hasPermission) {
-            throw new ForbiddenException('Insufficient permissions');
+            throw new ForbiddenException({
+                success: false,
+                message: 'You do not have permission to access this resource',
+                statusCode: 403,
+            });
         }
         return true;
     }

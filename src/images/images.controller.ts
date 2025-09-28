@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, DefaultValuePipe, Delete, Get, HttpException, Param, ParseIntPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, DefaultValuePipe, Delete, Get, Param, ParseIntPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { randomUUID } from 'crypto';
 import type { FastifyRequest } from 'fastify';
@@ -30,19 +30,31 @@ export class ImagesController {
     try {
       // Check if request is multipart
       if (!req.isMultipart()) {
-        throw new BadRequestException('Request must be multipart/form-data');
+        throw new BadRequestException({
+          success: false,
+          message: 'Request must be multipart',
+          statusCode: 400,
+        });
       }
 
       // Get the file part from the multipart request
       const data = await req.file();
 
       if (!data) {
-        throw new BadRequestException('No file uploaded');
+        throw new BadRequestException({
+          success: false,
+          message: 'No file uploaded',
+          statusCode: 400,
+        });
       }
 
       // Validate file type
       if (!data.mimetype.match(/\/(jpg|jpeg|png|gif|bmp|tiff|webp)$/)) {
-        throw new BadRequestException('Only image files are allowed!');
+        throw new BadRequestException({
+          success: false,
+          message: 'Invalid file type',
+          statusCode: 400,
+        });
       }
 
       // Read the file buffer
@@ -51,7 +63,11 @@ export class ImagesController {
       // Check file size (20MB limit)
       const maxSize = 20 * 1024 * 1024;
       if (buffer.length > maxSize) {
-        throw new BadRequestException(`File too large. Maximum size is ${maxSize} bytes`);
+        throw new BadRequestException({
+          success: false,
+          message: 'File size exceeds the limit of 20MB',
+          statusCode: 400,
+        });
       }
 
       // Generate unique filename
@@ -73,11 +89,11 @@ export class ImagesController {
 
       return this.imagesService.processImage(req.user.sub, processedFile);
     } catch (error) {
-      // Re-throw HTTP exceptions (like ForbiddenException from guards) as-is
-      if (error instanceof HttpException) {
-        throw error;
-      }
-      throw new BadRequestException('Error processing file upload');
+      throw new BadRequestException({
+        success: false,
+        message: 'Failed to process image',
+        statusCode: 400,
+      });
     }
   }
 
