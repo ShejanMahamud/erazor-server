@@ -1,46 +1,70 @@
-import type { ArgumentsHost } from '@nestjs/common';
 import {
+    ArgumentsHost,
     Catch,
     ExceptionFilter,
     HttpException,
     HttpStatus,
 } from '@nestjs/common';
-import { SentryExceptionCaptured } from '@sentry/nestjs';
-import type { FastifyReply, FastifyRequest } from 'fastify';
+import { FastifyReply, FastifyRequest } from 'fastify';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
-    @SentryExceptionCaptured()
-    catch(exception: unknown, host: ArgumentsHost) {
+    catch(exception: any, host: ArgumentsHost) {
         const ctx = host.switchToHttp();
-        const response = ctx.getResponse<FastifyReply>();
-        const request = ctx.getRequest<FastifyRequest>();
+        const response: FastifyReply = ctx.getResponse();
+        const request: FastifyRequest = ctx.getRequest();
 
-        let status = HttpStatus.INTERNAL_SERVER_ERROR;
-        let payload: any = {
-            success: false,
-            statusCode: status,
-            message: 'Internal server error',
-        };
+        const status =
+            exception instanceof HttpException
+                ? exception.getStatus()
+                : HttpStatus.INTERNAL_SERVER_ERROR;
 
-        if (exception instanceof HttpException) {
-            status = exception.getStatus();
-            const res = exception.getResponse();
+        const errorResponse =
+            exception instanceof HttpException ? exception.getResponse() : null;
 
-            if (typeof res === 'string') {
-                payload.message = res;
-                payload.statusCode = status;
-            } else if (typeof res === 'object') {
-                payload = { ...res, statusCode: status };
+        // Initialize message and errors
+        let message: string;
+        let errors: { field: string | null; message: string }[] | undefined;
+
+        if (typeof errorResponse === 'string') {
+            message = errorResponse;
+        } else if (errorResponse !== null && typeof errorResponse === 'object') {
+            // errorResponse is an object
+            if ('message' in errorResponse) {
+                const msg = (errorResponse as Error).message;
+
+                if (Array.isArray(msg)) {
+                    errors = msg.map((m) => ({
+                        field: null,
+                        message: m,
+                    }));
+                    message = 'Validation failed';
+                } else if (typeof msg === 'string') {
+                    message = msg;
+                } else {
+                    message = exception.message || 'Internal Server Error';
+                }
+            } else if (
+                'error' in errorResponse &&
+                typeof (errorResponse as any).error === 'string'
+            ) {
+                message = (errorResponse as any).error;
+            } else {
+                message = exception.message || 'Internal Server Error';
             }
-        } else if (exception instanceof Error) {
-            payload.message = exception.message;
+        } else {
+            message = exception.message || 'Internal Server Error';
         }
 
         response.status(status).send({
-            ...payload,
-            path: request.url,
-            timestamp: new Date().toISOString(),
+            success: false,
+            message,
+            errors,
+            meta: {
+                statusCode: status,
+                timestamp: new Date().toISOString(),
+                path: request.url,
+            },
         });
     }
 }
