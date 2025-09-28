@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, DefaultValuePipe, Delete, Get, Param, ParseIntPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, DefaultValuePipe, Delete, Get, HttpException, Param, ParseIntPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { randomUUID } from 'crypto';
 import type { FastifyRequest } from 'fastify';
@@ -73,7 +73,8 @@ export class ImagesController {
 
       return this.imagesService.processImage(req.user.sub, processedFile);
     } catch (error) {
-      if (error instanceof BadRequestException) {
+      // Re-throw HTTP exceptions (like ForbiddenException from guards) as-is
+      if (error instanceof HttpException) {
         throw error;
       }
       throw new BadRequestException('Error processing file upload');
