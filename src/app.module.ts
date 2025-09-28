@@ -54,15 +54,8 @@ import { UsersModule } from './users/users.module';
           window: '60s',
           max: 60,
         }),
-        fixedWindow({
-          mode: 'LIVE',
-          window: '30d',
-          max: 10,
-          characteristics: ['/dashboard/background-remove', '/'],
-        }),
       ],
-    })
-    ,
+    }),
     BillingModule,
     ImagesModule,
     UsersModule,
