@@ -1,5 +1,5 @@
 import compression from '@fastify/compress';
-import fastifyCookie from '@fastify/cookie';
+import cookie from '@fastify/cookie';
 import helmet from '@fastify/helmet';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
@@ -17,6 +17,9 @@ import { AllExceptionsFilter } from './common/all-exception.filter';
 import "./instrument";
 import { LoggerInterceptor } from './logger/logger.interceptor';
 import { SanitizePipe } from './pipes/sanitize.pipe';
+const fastifyCompression = compression;
+const fastifyCookie = cookie;
+const fastifyHelmet = helmet;
 
 
 async function bootstrap() {
@@ -36,10 +39,27 @@ async function bootstrap() {
     }),
   });
 
-  await app.register(fastifyCookie, {
+  const fastifyInstance = app.getHttpAdapter().getInstance();
+
+  await fastifyInstance.register(fastifyCookie as any, {
     secret: process.env.COOKIE_SECRET,
     hook: 'onRequest',
   });
+
+  await fastifyInstance.register(fastifyHelmet as any, {
+    crossOriginEmbedderPolicy: false,
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+        imgSrc: ["'self'", "data:", "https:"],
+      }
+    },
+    frameguard: false,
+  });
+
+  await fastifyInstance.register(fastifyCompression as any, { encodings: ['gzip', 'deflate'] });
 
   await useApitally(app, {
     clientId: "0b1a1ee3-3eb3-4618-b312-f0d66b9f28c5",
@@ -54,8 +74,6 @@ async function bootstrap() {
       captureLogs: true,
     },
   });
-
-  await app.register(compression, { encodings: ['gzip', 'deflate'] });
 
   app.enableCors({
     origin: [process.env.CORS_ORIGIN!, 'http://localhost:3000'],
@@ -77,18 +95,6 @@ async function bootstrap() {
     new SanitizePipe()
   );
   app.useGlobalFilters(new AllExceptionsFilter());
-  await app.register(helmet, {
-    crossOriginEmbedderPolicy: false,
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        scriptSrc: ["'self'"],
-        imgSrc: ["'self'", "data:", "https:"],
-      }
-    },
-    frameguard: false,
-  });
 
   app.setGlobalPrefix('v1/api');
 
