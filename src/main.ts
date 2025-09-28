@@ -1,5 +1,9 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import {
+  FastifyAdapter,
+  NestFastifyApplication,
+} from '@nestjs/platform-fastify';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { useApitally } from "apitally/nestjs";
 import * as bodyParser from 'body-parser';
@@ -14,9 +18,8 @@ import { AllExceptionsFilter } from './common/all-exception.filter';
 import "./instrument";
 import { LoggerInterceptor } from './logger/logger.interceptor';
 import { SanitizePipe } from './pipes/sanitize.pipe';
-
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter(), {
     logger: WinstonModule.createLogger({
       transports: [
         new winston.transports.Console({
@@ -59,7 +62,7 @@ async function bootstrap() {
 
   app.use(cookieParser());
   app.enableCors({
-    origin: [process.env.CORS_ORIGIN, 'http://localhost:3000'],
+    origin: [process.env.CORS_ORIGIN!, 'http://localhost:3000'],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Authorization', 'Content-Type'],
     credentials: true,
