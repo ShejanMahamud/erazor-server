@@ -51,7 +51,21 @@ export class CustomLoggerService implements LoggerService {
         if (logContext && Object.keys(logContext).length > 0) {
             const contextDetails = Object.entries(logContext)
                 .filter(([_, value]) => value !== undefined && value !== null)
-                .map(([key, value]) => `${key}=${value}`)
+                .map(([key, value]) => {
+                    // Handle error objects specially to avoid circular references
+                    if (value instanceof Error) {
+                        return `${key}=${value.message}`;
+                    }
+                    // Handle objects by stringifying them properly
+                    if (typeof value === 'object') {
+                        try {
+                            return `${key}=${JSON.stringify(value)}`;
+                        } catch {
+                            return `${key}=[object Object]`;
+                        }
+                    }
+                    return `${key}=${value}`;
+                })
                 .join(' ');
 
             if (contextDetails) {
@@ -141,8 +155,26 @@ export class CustomLoggerService implements LoggerService {
         });
     }
 
-    logError(error: Error, context?: string, logContext?: LogContext): void {
-        this.error(error.message, error.stack, context, logContext);
+    logError(error: Error | any, context?: string, logContext?: LogContext): void {
+        let message: string;
+        let stack: string | undefined;
+
+        if (error instanceof Error) {
+            message = error.message;
+            stack = error.stack;
+        } else if (typeof error === 'object' && error !== null) {
+            // Handle HTTP exceptions or custom error objects
+            try {
+                message = error.message || JSON.stringify(error);
+                stack = error.stack;
+            } catch {
+                message = 'Unknown error object';
+            }
+        } else {
+            message = String(error);
+        }
+
+        this.error(message, stack, context, logContext);
     }
 
     logUserAction(
@@ -156,7 +188,7 @@ export class CustomLoggerService implements LoggerService {
             ...logContext,
             userId,
             action,
-            details: details ? JSON.stringify(details) : undefined,
+            ...(details && { details }),
         });
     }
 
@@ -188,7 +220,7 @@ export class CustomLoggerService implements LoggerService {
             ...logContext,
             userId,
             event,
-            details: details ? JSON.stringify(details) : undefined,
+            ...(details && { details }),
         });
     }
 

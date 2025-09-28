@@ -89,6 +89,12 @@ export class ImagesController {
 
       return this.imagesService.processImage(req.user.sub, processedFile);
     } catch (error) {
+      // Re-throw HTTP exceptions as they are (guards, validation errors, etc.)
+      if (error.status) {
+        throw error;
+      }
+
+      // Only handle unexpected errors
       throw new BadRequestException({
         success: false,
         message: 'Failed to process image',

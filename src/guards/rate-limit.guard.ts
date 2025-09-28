@@ -1,4 +1,4 @@
-import { CanActivate, ExecutionContext, ForbiddenException, Inject, Injectable, Type } from "@nestjs/common";
+import { CanActivate, ExecutionContext, HttpException, HttpStatus, Inject, Injectable, Type } from "@nestjs/common";
 import type { FastifyRequest } from 'fastify';
 import Redis from "ioredis";
 import { REDIS_CLIENT } from "src/queue/queue.module";
@@ -51,11 +51,15 @@ export const RateLimitGuard = (limit = 10, ttl = 60, freeDailyLimit = 3): Type<C
                 const effectiveLimit = secondaryKey ? Math.floor(freeDailyLimit * 1.5) : freeDailyLimit; // Slightly higher for auth users
 
                 if (effectiveUsage > effectiveLimit) {
-                    throw new ForbiddenException({
+                    throw new HttpException({
                         success: false,
                         message: 'USAGE_LIMIT_EXCEEDED',
-                        statusCode: 429,
-                    });
+                        meta: {
+                            statusCode: 429,
+                            timestamp: new Date().toISOString(),
+                            path: req.url,
+                        }
+                    }, HttpStatus.TOO_MANY_REQUESTS);
                 }
 
                 return true;
