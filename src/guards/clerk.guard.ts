@@ -18,7 +18,7 @@ export class ClerkGuard implements CanActivate {
 
         // Create a proper Request object with full URL for Clerk
         const protocol = req.protocol;
-        const host = req.host;
+        const host = req.headers.host;
         const fullUrl = `${protocol}://${host}${req.originalUrl || req.url}`;
 
         // Create a Request-like object that Clerk expects

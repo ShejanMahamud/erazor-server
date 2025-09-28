@@ -28,7 +28,7 @@ export class OptionalClerkGuard implements CanActivate {
 
         // Build full URL for Clerk
         const protocol = req.protocol;
-        const host = req.host;
+        const host = req.headers.host;
         const fullUrl = `${protocol}://${host}${req.originalUrl || req.url}`;
 
         // Clerk expects a fetch-like request

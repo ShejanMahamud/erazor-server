@@ -1,5 +1,4 @@
 import compression from '@fastify/compress';
-import type { FastifyCookieOptions } from '@fastify/cookie';
 import fastifyCookie from '@fastify/cookie';
 import helmet from '@fastify/helmet';
 import { ValidationPipe } from '@nestjs/common';
@@ -40,7 +39,7 @@ async function bootstrap() {
   await app.register(fastifyCookie, {
     secret: process.env.COOKIE_SECRET,
     hook: 'onRequest',
-  }) as FastifyCookieOptions;
+  });
 
   await useApitally(app, {
     clientId: "0b1a1ee3-3eb3-4618-b312-f0d66b9f28c5",
