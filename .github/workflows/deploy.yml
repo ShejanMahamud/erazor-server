@@ -51,7 +51,7 @@ jobs:
           username: ${{ secrets.SERVER_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            export PATH=$HOME/.nvm/versions/node/v22.19.0/bin:$PATH
+            export PATH=$HOME/.nvm/versions/node/v22.20.0/bin:$PATH
             cd ~/erazor-server
             pnpm install --frozen-lockfile
             pnpm prisma generate
