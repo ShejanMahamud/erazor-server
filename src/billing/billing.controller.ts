@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req, SetMetadata, UseGuards } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import { Permissions, Roles } from 'generated/prisma';
 import { PermissionsRequired } from 'src/decorators/permissions.decorator';
@@ -13,11 +13,13 @@ export class BillingController {
   constructor(private readonly billingService: BillingService) { }
 
   // Plans & Products
+  @SetMetadata('skipArcjet', true)
   @Get('plans')
   findAllPlans() {
     return this.billingService.findAllPlans();
   }
 
+  @SetMetadata('skipArcjet', true)
   @Get('plans/:id')
   getPlanById(@Param('id') id: string) {
     return this.billingService.getPlanById(id);
@@ -114,7 +116,9 @@ export class BillingController {
     return this.billingService.getSubscriptionAnalytics();
   }
 
+
   // Webhook endpoint (no auth needed for webhooks)
+  @SetMetadata('skipArcjet', true)
   @Post('webhook')
   handleWebhook(@Req() req: FastifyRequest) {
     return this.billingService.handleWebhookEvent(req);
