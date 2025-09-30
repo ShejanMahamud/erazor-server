@@ -39,7 +39,7 @@ export class OptionalClerkGuard implements CanActivate {
             method: req.method,
             headers: req.headers,
         };
-        const anonId = req.cookies?.anon_id || req.headers.cookie?.replace(/(?:(?:^|.*;\s*)anon_id\s*\=\s*([^;]*).*$)|^.*$/, "$1");
+        const anonId = req.cookies?.anon_id || req.headers.cookie?.replace(/(?:(?:^|.*;\s*)anon_id\s*\=\s*([^;]*).*$)|^.*$/, "$1") || this.generateAnonymousId(req, res);
 
         try {
             // Check if Authorization header exists first
