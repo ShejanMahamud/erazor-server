@@ -15,6 +15,8 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    networks:
+      - erazor-net
 
   redis:
     container_name: redis_erazor
@@ -31,6 +33,8 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    networks:
+      - erazor-net
 
   uptime-kuma:
     container_name: uptime_kuma
@@ -39,11 +43,38 @@ services:
       - ${UPTIME_KUMA_PORT}:3001
     volumes:
       - uptime_kuma_data:/app/data
-
     restart: unless-stopped
     env_file:
       - .env
+    networks:
+      - erazor-net
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    ports:
+      - '9090:9090'
+    network_mode: 'host'
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - '3002:3000'
+    depends_on:
+      - prometheus
+    networks:
+      - erazor-net
+
 volumes:
   postgres_data:
   redis_data:
   uptime_kuma_data:
+
+networks:
+  erazor-net:
+    driver: bridge
