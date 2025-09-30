@@ -26,8 +26,6 @@ export class OptionalClerkGuard implements CanActivate {
 
     async canActivate(ctx: ExecutionContext): Promise<boolean> {
         const req = ctx.switchToHttp().getRequest<FastifyRequest>();
-        const res = ctx.switchToHttp().getResponse<FastifyReply>();
-
         // Build full URL for Clerk
         const protocol = req.protocol;
         const host = req.headers.host;
