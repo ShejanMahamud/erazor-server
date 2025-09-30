@@ -39,13 +39,15 @@ export class OptionalClerkGuard implements CanActivate {
             method: req.method,
             headers: req.headers,
         };
+        const anonId = req.cookies?.anon_id || req.headers.cookie?.replace(/(?:(?:^|.*;\s*)anon_id\s*\=\s*([^;]*).*$)|^.*$/, "$1");
 
         try {
             // Check if Authorization header exists first
-            const authHeader = req.headers.authorization;
+            const authHeader = req.headers['authorization'];
+
             if (!authHeader || !authHeader.startsWith('Bearer ')) {
                 this.logger.debug('No valid authorization header found, using anonymous user');
-                req['user'] = { sub: this.generateAnonymousId(req, res) };
+                req['user'] = { sub: anonId };
                 return true;
             }
 
@@ -97,7 +99,7 @@ export class OptionalClerkGuard implements CanActivate {
         }
 
         // Fallback: Anonymous user
-        req['user'] = { sub: this.generateAnonymousId(req, res) };
+        req['user'] = { sub: anonId };
         return true;
     }
 
