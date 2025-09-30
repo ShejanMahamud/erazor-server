@@ -63,8 +63,11 @@ export class ImageProcessor extends WorkerHost {
                 stack: error.stack
             });
 
-            // Enhanced cleanup
-            await this.cleanupTempFiles(job);
+            // Only cleanup temp files on final failure to avoid issues with retries
+            if (job.attemptsMade >= (job.opts?.attempts || 1)) {
+                await this.cleanupTempFiles(job);
+            }
+
             throw error;
         } finally {
             const duration = Date.now() - startTime;
@@ -159,14 +162,10 @@ export class ImageProcessor extends WorkerHost {
             this.logger.error(`Failed to process image ${originalname}:`, error.message);
             throw error;
         } finally {
-            // Ensure file stream is closed and file is cleaned up
+            // Ensure file stream is closed
             fileStream.destroy();
-            try {
-                await fs.unlink(tempFilePath);
-                this.logger.log(`Cleaned up temp file: ${tempFilePath}`);
-            } catch (cleanupError: any) {
-                this.logger.warn(`Cleanup failed for ${tempFilePath}:`, cleanupError.message);
-            }
+            // Don't cleanup temp file here as it might be needed for retries
+            // Cleanup will happen in the main process method after final failure
         }
     }
 
@@ -230,24 +229,62 @@ export class ImageProcessor extends WorkerHost {
             filename?: string;
         };
     }>): Promise<void> {
-        const anonUser = job.data.userId.startsWith('anon-')
-        const data = await this.handleImageProcessing(job);
-        await this.prisma.image.create({
-            data: {
-                ownerId: anonUser ? null : job.data.userId,
-                processId: data.id,
-                originalFileName: job.data.file.originalname,
-                status: data.statusName,
-                originalImageUrlHQ: data.source.url,
+        const anonUser = job.data.userId.startsWith('anon-');
+
+        // For anonymous users, we need to handle the ownerId differently
+        let ownerId: string | null = null;
+
+        if (!anonUser) {
+            // For authenticated users, only set ownerId if user exists in database
+            const user = await this.findUserById(job.data.userId);
+            if (user) {
+                ownerId = job.data.userId;
+            } else {
+                this.logger.warn(`User ${job.data.userId} not found in database, creating image without owner`);
+                // User must be logged in and exist in database, or be anonymous
+                // No user creation happens here
             }
-        });
-        // if (!anonUser) {
-        //     await this.notificationGateway.sendNotification({
-        //         userId: job.data.userId,
-        //         type: 'INFO',
-        //         message: `Your image ${job.data.file.originalname} is being processed.`,
-        //     })
-        // }
+        }
+        // For anonymous users, ownerId remains null
+
+        const data = await this.handleImageProcessing(job);
+
+        try {
+            await this.prisma.image.create({
+                data: {
+                    ownerId: ownerId,
+                    processId: data.id,
+                    originalFileName: job.data.file.originalname,
+                    status: data.statusName,
+                    originalImageUrlHQ: data.source.url,
+                }
+            });
+        } catch (dbError: any) {
+            this.logger.error(`Database error creating image record:`, {
+                error: dbError.message,
+                code: dbError.code,
+                userId: job.data.userId,
+                ownerId: ownerId,
+                processId: data.id
+            });
+
+            // If it's a foreign key constraint error, try creating without ownerId
+            if (dbError.code === 'P2003' || dbError.message.includes('Foreign key constraint')) {
+                this.logger.warn(`Foreign key constraint violation, creating image without owner`);
+                await this.prisma.image.create({
+                    data: {
+                        ownerId: null,
+                        processId: data.id,
+                        originalFileName: job.data.file.originalname,
+                        status: data.statusName,
+                        originalImageUrlHQ: data.source.url,
+                    }
+                });
+            } else {
+                throw dbError;
+            }
+        }
+
         await this.imageProcessorQueue.add('poll-image', {
             processId: data.id,
             userId: job.data.userId
@@ -255,6 +292,9 @@ export class ImageProcessor extends WorkerHost {
             priority: 1,
             delay: 5000
         });
+
+        // Clean up temp file after successful database creation
+        await this.cleanupTempFiles(job);
     }
 
     async handleImagePoll(job: Job<{ processId: string, userId: string, attempt?: number }>): Promise<void> {
@@ -384,12 +424,6 @@ export class ImageProcessor extends WorkerHost {
                     }]
                 });
 
-                // Send completion notification
-                // await this.notificationGateway.sendNotification({
-                //     userId: image.ownerId,
-                //     type: 'INFO',
-                //     message: `Your image ${image.originalFileName} has been processed successfully.`,
-                // });
             } catch (error) {
                 this.logger.warn(`Failed to send analytics/notification for ${image.ownerId}:`, error);
             }
@@ -415,15 +449,6 @@ export class ImageProcessor extends WorkerHost {
             where: { id: image.id },
             data: { status: 'queue' } // Keep as queue for potential retry
         });
-
-        // Notify user of timeout
-        // if (image.ownerId) {
-        //     await this.notificationGateway.sendNotification({
-        //         userId: image.ownerId,
-        //         type: 'WARNING',
-        //         message: `Processing of ${image.originalFileName} is taking longer than expected. Please try again later.`,
-        //     });
-        // }
     }
 
     // Handle processing failure
@@ -435,15 +460,6 @@ export class ImageProcessor extends WorkerHost {
             where: { id: image.id },
             data: { status: 'queue' } // Reset to queue for potential retry
         });
-
-        // Notify user of failure
-        // if (image.ownerId) {
-        //     await this.notificationGateway.sendNotification({
-        //         userId: image.ownerId,
-        //         type: 'ALERT',
-        //         message: `Failed to process ${image.originalFileName}. Please try uploading again.`,
-        //     });
-        // }
     }
 
     // Check if error is retryable
