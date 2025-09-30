@@ -10,7 +10,6 @@ import {
 } from '@nestjs/platform-fastify';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { useApitally } from "apitally/nestjs";
-import { writeFileSync } from 'fs';
 import { WinstonModule } from 'nest-winston';
 import * as winston from 'winston';
 import { AppModule } from './app.module';
@@ -153,7 +152,6 @@ async function bootstrap() {
 
     const documentFactory = () => SwaggerModule.createDocument(app, config);
     const document = documentFactory();
-    writeFileSync('./openapi.json', JSON.stringify(document, null, 2));
     SwaggerModule.setup('/v1/api/docs', app, documentFactory);
   }
 

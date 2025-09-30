@@ -11,6 +11,7 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { TerminusModule } from '@nestjs/terminus';
 import { SentryModule } from '@sentry/nestjs/setup';
+import { PrometheusModule } from "@willsoto/nestjs-prometheus";
 import { AdminModule } from './admin/admin.module';
 import { AppController } from './app.controller';
 import { BillingModule } from './billing/billing.module';
@@ -24,10 +25,21 @@ import { PrismaModule } from './prisma/prisma.module';
 import { QueueModule } from './queue/queue.module';
 import { UsersModule } from './users/users.module';
 
+
 @Module({
   imports: [
     HttpModule,
     TerminusModule,
+    PrometheusModule.register({
+      path: "/metrics", // default endpoint
+      defaultMetrics: {
+        enabled: true,  // collect default Node.js metrics
+      },
+      defaultLabels: {
+        app: "erazor-ai", // tag metrics with your app name
+        service: "bg-rmv-api"
+      },
+    }),
     SentryModule.forRoot(),
     LoggerModule,
     PrismaModule,
