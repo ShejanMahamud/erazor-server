@@ -5,6 +5,7 @@ import type { FastifyRequest } from 'fastify';
 import * as fs from 'fs/promises';
 import { ImageStatus, Permissions, Roles } from 'generated/prisma';
 import { extname } from 'path/win32';
+import { FileSizeLimitInterceptor } from 'src/common/interceptors/subscription-file-validation';
 import { PermissionsRequired } from 'src/decorators/permissions.decorator';
 import { RolesRequired } from 'src/decorators/roles.decorator';
 import { ClerkGuard } from 'src/guards/clerk.guard';
@@ -24,7 +25,7 @@ export class ImagesController {
     private readonly imagesService: ImagesService,
   ) { }
 
-  @UseGuards(OptionalClerkGuard, RateLimitGuard(20, 60, 3), ActiveSubscriptionGuard, HasCreditGuard)
+  @UseGuards(OptionalClerkGuard, RateLimitGuard(20, 60, 3), ActiveSubscriptionGuard, HasCreditGuard, FileSizeLimitInterceptor)
   @Post('process')
   async processImage(@Req() req: FastifyRequest) {
     try {

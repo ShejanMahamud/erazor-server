@@ -49,27 +49,22 @@ services:
     networks:
       - erazor-net
 
-  prometheus:
-    image: prom/prometheus
-    container_name: prometheus
-    ports:
-      - '9090:9090'
-    network_mode: 'host'
+  agent:
+    container_name: newrelic-infra
+    build:
+      context: .
+      dockerfile: newrelic-infra.dockerfile
+    cap_add:
+      - SYS_PTRACE
+    pid: host
+    privileged: true
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-
-  grafana:
-    image: grafana/grafana
-    container_name: grafana
-    ports:
-      - '3002:3000'
-    depends_on:
-      - prometheus
+      - "/:/host:ro"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    restart: unless-stopped
     networks:
       - erazor-net
-
+      
 volumes:
   postgres_data:
   redis_data:
