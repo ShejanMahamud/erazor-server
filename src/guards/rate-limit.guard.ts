@@ -1,80 +1,122 @@
-import { CanActivate, ExecutionContext, HttpException, HttpStatus, Inject, Injectable, Type } from "@nestjs/common";
-import type { FastifyRequest } from 'fastify';
+import {
+    CanActivate,
+    ExecutionContext,
+    HttpException,
+    HttpStatus,
+    Inject,
+    Injectable,
+    Type,
+} from "@nestjs/common";
+import { createHash } from "crypto";
+import type { FastifyReply, FastifyRequest } from "fastify";
 import Redis from "ioredis";
 import { REDIS_CLIENT } from "src/queue/queue.module";
-export const RateLimitGuard = (limit = 10, ttl = 60, freeDailyLimit = 3): Type<CanActivate> => {
+
+export const RateLimitGuard = (
+    limit = 10, // per-route burst limit
+    ttl = 60, // per-route window seconds
+    freeDailyLimit = 3 // free user daily limit
+): Type<CanActivate> => {
     @Injectable()
     class RateLimitGuard implements CanActivate {
-        constructor(@Inject(REDIS_CLIENT) private readonly redisClient: Redis) {
-        }
+        constructor(@Inject(REDIS_CLIENT) private readonly redisClient: Redis) { }
 
         async canActivate(ctx: ExecutionContext): Promise<boolean> {
             const req = ctx.switchToHttp().getRequest<FastifyRequest>();
+            const res = ctx.switchToHttp().getResponse<FastifyReply>();
+
             const userId = req?.user?.sub;
             const today = new Date().toISOString().slice(0, 10);
-            const identifier = userId ?? req.ip;
 
+            if (req.user?.paidUser) return true;
 
-            // Handle free users (both anonymous and authenticated) with hybrid tracking
-            if (userId?.startsWith("anon-") || req.user?.freeUser) {
-                const userAgent = req.headers['user-agent'] || '';
-                const fingerprint = Buffer.from(`${userAgent}:${req.headers['accept-language'] || ''}:${req.headers['accept-encoding'] || ''}`).toString('base64').substring(0, 16);
+            const userAgent = req.headers["user-agent"] || "";
+            const fingerprint = createHash("sha256")
+                .update(
+                    `${userAgent}|${req.headers["accept-language"] || ""}|${req.headers["accept-encoding"] || ""
+                    }`
+                )
+                .digest("hex")
+                .slice(0, 16);
 
-                // For anonymous users: use IP + browser fingerprint
-                // For authenticated free users: use userId as primary, IP as secondary check
-                const primaryKey = userId?.startsWith("anon-")
-                    ? `usage:free:${req.ip}:${fingerprint}:${today}`
-                    : `usage:free:${userId}:${today}`;
+            const anonKey = `usage:free:${req.ip}:${fingerprint}:${today}`;
+            const userKey = userId && req.user?.freeUser ? `usage:free:${userId}:${today}` : null;
 
-                // Secondary check with IP for authenticated users (to detect account sharing)
-                const secondaryKey = !userId?.startsWith("anon-")
-                    ? `usage:free-ip:${req.ip}:${today}`
-                    : null;
+            let effectiveUsage = 0;
 
-                // Check primary limit
-                const primaryUsage = await this.redisClient.incr(primaryKey);
-                if (primaryUsage === 1) {
-                    await this.redisClient.expire(primaryKey, 86400); // expire in 24h
-                }
+            if (userKey) {
+                await this.redisClient.eval(
+                    `
+          local a = redis.call("GET", KEYS[1])
+          if a then
+            redis.call("DEL", KEYS[1])
+            redis.call("INCRBY", KEYS[2], tonumber(a))
+          end
+          return 1
+        `,
+                    2,
+                    anonKey,
+                    userKey
+                );
 
-                // Check secondary limit for authenticated users (IP-based)
-                let secondaryUsage = 0;
-                if (secondaryKey) {
-                    secondaryUsage = await this.redisClient.incr(secondaryKey);
-                    if (secondaryUsage === 1) {
-                        await this.redisClient.expire(secondaryKey, 86400);
-                    }
-                }
+                const usage = await this.redisClient.incr(userKey);
+                if (usage === 1) await this.redisClient.expire(userKey, 86400);
+                effectiveUsage = usage;
+            } else {
+                // ✅ Pure anon
+                const usage = await this.redisClient.incr(anonKey);
+                if (usage === 1) await this.redisClient.expire(anonKey, 86400);
+                effectiveUsage = usage;
+            }
 
-                // Apply stricter limit - either per user or per IP
-                const effectiveUsage = secondaryKey ? Math.max(primaryUsage, secondaryUsage) : primaryUsage;
-                const effectiveLimit = secondaryKey ? Math.floor(freeDailyLimit * 1.5) : freeDailyLimit; // Slightly higher for auth users
+            if (effectiveUsage > freeDailyLimit) {
+                res.header("Retry-After", 86400);
+                res.header("X-RateLimit-Limit", freeDailyLimit);
+                res.header("X-RateLimit-Remaining", Math.max(0, freeDailyLimit - effectiveUsage));
 
-                if (effectiveUsage > effectiveLimit) {
-                    throw new HttpException({
+                throw new HttpException(
+                    {
                         success: false,
-                        message: 'USAGE_LIMIT_EXCEEDED',
+                        message: "USAGE_LIMIT_EXCEEDED",
+                        meta: {
+                            statusCode: 429,
+                            timestamp: new Date().toISOString(),
+                            path: req.url
+                        },
+                    },
+                    HttpStatus.TOO_MANY_REQUESTS
+                );
+            }
+
+            const routeKey = `${req.method}:${req.url}`;
+            const identifier = userId ?? req.ip;
+            const rateKey = `rate-limit:${identifier}:${routeKey}`;
+
+            const current = await this.redisClient.incr(rateKey);
+            if (current === 1) await this.redisClient.expire(rateKey, ttl);
+
+            if (current > limit) {
+                res.header("Retry-After", ttl);
+                res.header("X-RateLimit-Limit", limit);
+                res.header("X-RateLimit-Remaining", Math.max(0, limit - current));
+
+                throw new HttpException(
+                    {
+                        success: false,
+                        message: "TOO_MANY_REQUESTS",
                         meta: {
                             statusCode: 429,
                             timestamp: new Date().toISOString(),
                             path: req.url,
-                        }
-                    }, HttpStatus.TOO_MANY_REQUESTS);
-                }
+                        },
+                    },
+                    HttpStatus.TOO_MANY_REQUESTS
+                );
+            }
 
-                return true;
-            }
-            const routeKey = `${req.method}:${req.url}`;
-            const key = `rate-limit:${identifier}:${routeKey}`;
-            const current = await this.redisClient.incr(key);
-            if (current === 1) {
-                await this.redisClient.expire(key, ttl);
-            }
-            if (current > limit) {
-                return false; // Rate limit exceeded
-            }
             return true;
         }
     }
+
     return RateLimitGuard;
-}
+};
