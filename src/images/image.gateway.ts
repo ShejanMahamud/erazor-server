@@ -36,12 +36,16 @@ export class ImageGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
 
             this.logger.log(`User ${userId} attempting to join room with socket ${client.id}`);
 
-            // Leave any existing rooms (except the default socket.id room)
-            const currentRooms = Array.from(client.rooms).filter(room => room !== client.id);
-            currentRooms.forEach(room => {
-                client.leave(room);
-                this.logger.log(`Socket ${client.id} left previous room: ${room}`);
-            });
+            // Safer way to leave existing rooms
+            if (client.rooms && typeof client.rooms !== 'undefined') {
+                const currentRooms = Array.from(client.rooms).filter(room => room !== client.id);
+                currentRooms.forEach(room => {
+                    client.leave(room);
+                    this.logger.log(`Socket ${client.id} left previous room: ${room}`);
+                });
+            } else {
+                this.logger.log(`Socket ${client.id} has no rooms property or it's undefined, skipping room cleanup`);
+            }
 
             // Join the new room
             client.join(userId);
