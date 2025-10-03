@@ -31,39 +31,35 @@ export class ImageGateway implements OnGatewayInit, OnGatewayConnection, OnGatew
             if (!userId) {
                 this.logger.error('Received join request with null/undefined userId');
                 client.emit('error', { message: 'Invalid user ID' });
-                return { status: 'error', message: 'Invalid user ID' };
+                return;
             }
 
             this.logger.log(`User ${userId} attempting to join room with socket ${client.id}`);
 
-            // Safer way to leave existing rooms
-            if (client.rooms && typeof client.rooms !== 'undefined') {
-                const currentRooms = Array.from(client.rooms).filter(room => room !== client.id);
-                currentRooms.forEach(room => {
-                    client.leave(room);
-                    this.logger.log(`Socket ${client.id} left previous room: ${room}`);
-                });
-            } else {
-                this.logger.log(`Socket ${client.id} has no rooms property or it's undefined, skipping room cleanup`);
+            // Leave all rooms except its own socket.id
+            const currentRooms = [...client.rooms].filter((room) => room !== client.id);
+            for (const room of currentRooms) {
+                client.leave(room);
+                this.logger.log(`Socket ${client.id} left previous room: ${room}`);
             }
 
             // Join the new room
             client.join(userId);
 
-            const roomSize = this.server.sockets.adapter.rooms.get(userId)?.size || 0;
-            this.logger.log(`User ${userId} successfully joined their room. Socket: ${client.id}, Room size: ${roomSize}`);
+            const roomSize = this.server.sockets.adapter.rooms.get(userId)?.size ?? 0;
+            this.logger.log(
+                `User ${userId} successfully joined their room. Socket: ${client.id}, Room size: ${roomSize}`
+            );
 
-            // Send confirmation back to client
             client.emit('joined', { userId, socketId: client.id, roomSize });
-
             return { status: 'success', message: 'Joined room successfully' };
-
         } catch (error) {
-            this.logger.error(`Error in handleJoin for user ${userId}:`, error);
+            this.logger.error(`Error in handleJoin for user ${userId}: ${error.message}`);
             client.emit('error', { message: 'Failed to join room', error: error.message });
             return { status: 'error', message: error.message };
         }
     }
+
 
     sendImageUpdate(userId: string, updateData: any) {
         try {
