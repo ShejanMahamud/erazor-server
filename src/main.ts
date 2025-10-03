@@ -1,5 +1,6 @@
 import compression from '@fastify/compress';
 import cookie from '@fastify/cookie';
+import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import multipart from '@fastify/multipart';
 import { ValidationPipe } from '@nestjs/common';
@@ -21,6 +22,7 @@ const fastifyCompression = compression;
 const fastifyCookie = cookie;
 const fastifyHelmet = helmet;
 const fastifyMultipart = multipart;
+const fastifyCors = cors;
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter(), {
@@ -67,6 +69,13 @@ async function bootstrap() {
     frameguard: false,
   });
 
+  await fastifyInstance.register(fastifyCors as any, {
+    origin: [process.env.CORS_ORIGIN!, 'http://localhost:3000'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Authorization', 'Content-Type'],
+    credentials: true,
+  });
+
   await fastifyInstance.register(fastifyCompression as any, { encodings: ['gzip', 'deflate'] });
 
   await useApitally(app, {
@@ -83,12 +92,12 @@ async function bootstrap() {
     },
   });
 
-  app.enableCors({
-    origin: [process.env.CORS_ORIGIN!, 'http://localhost:3000'],
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Authorization', 'Content-Type'],
-    credentials: true,
-  });
+  // app.enableCors({
+  //   origin: [process.env.CORS_ORIGIN!, 'http://localhost:3000'],
+  //   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  //   allowedHeaders: ['Authorization', 'Content-Type'],
+  //   credentials: true,
+  // });
 
   app.useGlobalPipes(
     new ValidationPipe({
