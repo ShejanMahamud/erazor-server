@@ -431,9 +431,14 @@ export class ImageProcessor extends WorkerHost {
 
         // Send socket update
         const targetUserId = userId || image.ownerId;
+        this.logger.log(`Preparing to send socket update: userId=${userId}, image.ownerId=${image.ownerId}, targetUserId=${targetUserId}`);
+
         if (targetUserId) {
+            this.logger.log(`Calling imageSocket.sendImageUpdate with targetUserId: ${targetUserId}`);
             this.imageSocket.sendImageUpdate(targetUserId, updatedImage);
             this.logger.log(`Sent image update for ${targetUserId}`);
+        } else {
+            this.logger.error(`Cannot send socket update: no valid userId found. userId=${userId}, image.ownerId=${image.ownerId}`);
         }
 
         // Clear cache
