@@ -28,7 +28,7 @@ export class BillingService implements IBillingService {
     const session = await this.polarClient.checkouts.create({
       products: [productId],
       externalCustomerId: userId,
-      successUrl: `${process.env.CLIENT_URL}/dashboard/overview`,
+      successUrl: `${process.env.PROD_ORIGIN}/dashboard/overview`,
     })
     return {
       success: true,

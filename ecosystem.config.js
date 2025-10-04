@@ -15,8 +15,11 @@ module.exports = {
         // All environment variables (keeping existing structure)
         POLAR_ACCESS_TOKEN: process.env.POLAR_ACCESS_TOKEN,
         POLAR_WEBHOOK_SECRET: process.env.POLAR_WEBHOOK_SECRET,
-        CORS_ORIGIN: process.env.CORS_ORIGIN,
-        CLIENT_URL: process.env.CLIENT_URL,
+        PROD_ORIGIN: process.env.PROD_ORIGIN,
+        DEV_ORIGIN: process.env.DEV_ORIGIN,
+        LOCAL_ORIGIN: process.env.LOCAL_ORIGIN,
+        API_TALLY_CLIENT_ID: process.env.API_TALLY_CLIENT_ID,
+        API_TALLY_ENV: process.env.API_TALLY_ENV,
         IMAGE_PROCESSOR_URL: process.env.IMAGE_PROCESSOR_URL,
         IMAGE_PROCESSOR_API_KEY: process.env.IMAGE_PROCESSOR_API_KEY,
         IMAGE_PROCESSOR_FREE_API_KEY: process.env.IMAGE_PROCESSOR_FREE_API_KEY,
