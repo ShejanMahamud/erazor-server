@@ -1,5 +1,4 @@
 import {
-    BadRequestException,
     Controller,
     MessageEvent,
     Param,
@@ -16,10 +15,6 @@ export class ImageEventsController {
 
     @Sse('events/:userId')
     events(@Req() req: Request, @Param('userId') userId: string): Observable<MessageEvent> {
-        const user = req.user.sub;
-        if (user !== userId) {
-            throw new BadRequestException('Unauthorized');
-        }
         return this.imageEventsService.subscribeToUser(userId);
     }
 }
