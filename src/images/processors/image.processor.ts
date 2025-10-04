@@ -9,7 +9,7 @@ import * as fs from 'fs/promises';
 import Redis from "ioredis";
 import { PrismaService } from "src/prisma/prisma.service";
 import { REDIS_CLIENT } from "src/queue/queue.module";
-import { ImageGateway } from "../image.gateway";
+import { ImageEventsService } from "../events/image-events.service";
 import FormData = require("form-data");
 
 type PollImagePayload = { processId: string, userId: string, attempt?: number };
@@ -25,7 +25,7 @@ export class ImageProcessor extends WorkerHost {
         private readonly config: ConfigService,
         private readonly prisma: PrismaService,
         @InjectQueue('image-processor') private readonly imageProcessorQueue: Queue,
-        private readonly imageSocket: ImageGateway,
+        private readonly imageEventsService: ImageEventsService,
         @Inject('POLAR_CLIENT') private readonly polarClient: Polar,
         @Inject(REDIS_CLIENT) private readonly redisClient: Redis
     ) {
@@ -435,8 +435,9 @@ export class ImageProcessor extends WorkerHost {
 
         if (targetUserId) {
             this.logger.log(`Calling imageSocket.sendImageUpdate with targetUserId: ${targetUserId}`);
-            this.imageSocket.sendImageUpdate(targetUserId, updatedImage);
-            this.logger.log(`Sent image update for ${targetUserId}`);
+            this.imageEventsService.sendImageUpdate(targetUserId, updatedImage);
+
+            this.logger.log(`Sent SSE image update for ${targetUserId}`);
         } else {
             this.logger.error(`Cannot send socket update: no valid userId found. userId=${userId}, image.ownerId=${image.ownerId}`);
         }
