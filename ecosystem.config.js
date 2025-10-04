@@ -7,6 +7,7 @@ module.exports = {
       script: './dist/main.js',
       instances: 'max', // Use all CPU cores
       exec_mode: 'cluster',
+      sticky: true,
       env: {
         NODE_ENV: 'production',
         PORT: process.env.PORT || 4545,

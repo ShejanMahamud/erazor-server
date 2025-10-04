@@ -1,10 +1,11 @@
 import {
     Controller,
     MessageEvent,
-    Param,
+    Req,
     Sse,
     UseGuards
 } from '@nestjs/common';
+import type { FastifyRequest } from 'fastify';
 import { Observable } from 'rxjs';
 import { OptionalClerkGuard } from 'src/guards/optional-clerk.guard';
 import { ImageEventsService } from './image-events.service';
@@ -14,8 +15,9 @@ export class ImageEventsController {
     constructor(private readonly imageEventsService: ImageEventsService) { }
 
     @UseGuards(OptionalClerkGuard)
-    @Sse('events/:userId')
-    events(@Param('userId') userId: string): Observable<MessageEvent> {
-        return this.imageEventsService.subscribeToUser(userId);
+    @Sse('events')
+    events(@Req() req: FastifyRequest): Observable<MessageEvent> {
+
+        return this.imageEventsService.subscribeToUser(req.user?.sub);
     }
 }
