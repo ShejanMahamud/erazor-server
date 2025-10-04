@@ -1,27 +1,25 @@
 import {
+    BadRequestException,
     Controller,
     MessageEvent,
+    Param,
     Req,
-    Res,
-    Sse,
-    UseGuards
+    Sse
 } from '@nestjs/common';
-import type { Request, Response } from 'express';
+import type { Request } from 'express';
 import { Observable } from 'rxjs';
-import { OptionalClerkGuard } from 'src/guards/optional-clerk.guard';
 import { ImageEventsService } from './image-events.service';
 
 @Controller('images')
 export class ImageEventsController {
     constructor(private readonly imageEventsService: ImageEventsService) { }
 
-    @UseGuards(OptionalClerkGuard)
-    @Sse('events')
-    events(@Req() req: Request, @Res({ passthrough: true }) res: Response): Observable<MessageEvent> {
-        res.setHeader('Access-Control-Allow-Origin', 'https://www.erazor.app');
-        res.setHeader('Access-Control-Allow-Credentials', 'true');
-        res.setHeader('Cache-Control', 'no-cache');
-        res.setHeader('Connection', 'keep-alive');
-        return this.imageEventsService.subscribeToUser(req.user?.sub);
+    @Sse('events/:userId')
+    events(@Req() req: Request, @Param('userId') userId: string): Observable<MessageEvent> {
+        const user = req.user.sub;
+        if (user !== userId) {
+            throw new BadRequestException('Unauthorized');
+        }
+        return this.imageEventsService.subscribeToUser(userId);
     }
 }
