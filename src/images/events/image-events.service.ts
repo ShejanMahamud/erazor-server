@@ -9,11 +9,16 @@ export class ImageEventsService {
     private userStreams = new Map<string, Subject<MessageEvent>>();
 
     // Called by processor when an image is updated
-    sendImageUpdate(userId: string, imageData: any) {
+    sendImageUpdate(userId: string, imageData: any, completed = false) {
         const stream = this.userStreams.get(userId);
         if (stream) {
             this.logger.log(`SSE: Sending image update to user ${userId}`);
             stream.next({ data: imageData });
+            if (completed) {
+                this.logger.log(`SSE: Closing connection for user ${userId}`);
+                stream.complete();
+                this.userStreams.delete(userId);
+            }
         }
     }
 
@@ -22,7 +27,20 @@ export class ImageEventsService {
         if (!this.userStreams.has(userId)) {
             this.userStreams.set(userId, new Subject<MessageEvent>());
         }
+        const stream = this.userStreams.get(userId)!;
+
         this.logger.log(`SSE: User ${userId} subscribed`);
-        return this.userStreams.get(userId)!.asObservable();
+
+        return new Observable<MessageEvent>((observer) => {
+            const subscription = stream.subscribe(observer);
+
+            // 👇 Clean up on disconnect
+            return () => {
+                this.logger.log(`SSE: User ${userId} disconnected`);
+                stream.complete();
+                this.userStreams.delete(userId);
+            };
+        });
     }
+
 }

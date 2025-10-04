@@ -435,7 +435,7 @@ export class ImageProcessor extends WorkerHost {
 
         if (targetUserId) {
             this.logger.log(`Calling imageSocket.sendImageUpdate with targetUserId: ${targetUserId}`);
-            this.imageEventsService.sendImageUpdate(targetUserId, updatedImage);
+            this.imageEventsService.sendImageUpdate(targetUserId, updatedImage, true);
 
             this.logger.log(`Sent SSE image update for ${targetUserId}`);
         } else {
