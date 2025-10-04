@@ -2,7 +2,7 @@
 import { Controller, Get, Req } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
 import { HealthCheckService, HttpHealthIndicator, PrismaHealthIndicator } from '@nestjs/terminus';
-import type { FastifyRequest } from 'fastify';
+import type { Request } from 'express';
 import { PrismaService } from './prisma/prisma.service';
 import { getSystemInfoJson } from './utils/system-info';
 
@@ -17,9 +17,9 @@ export class AppController {
   ) { }
 
   @Get()
-  getHello(@Req() req: FastifyRequest) {
+  getHello(@Req() req: Request) {
     const protocol = req.protocol;
-    const host = req.headers.host;
+    const host = req.get('host');
     return {
       success: true,
       message: 'Server is running',
@@ -31,11 +31,12 @@ export class AppController {
   }
 
   @Get('health')
-  async getHealth(@Req() req: FastifyRequest) {
+  async getHealth(@Req() req: Request) {
     const system = getSystemInfoJson();
+    const host = req.get('host');
     const health = await this.health.check([
       () => this.db.pingCheck('database', this.prisma),
-      () => this.http.pingCheck('api', `${req.protocol}://${req.headers.host}/v1/api`),
+      () => this.http.pingCheck('api', `${req.protocol}://${host}/v1/api`),
     ]);
     return {
       success: true,

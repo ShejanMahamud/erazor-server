@@ -1,16 +1,11 @@
-import compression from '@fastify/compress';
-import cookie from '@fastify/cookie';
-import cors from '@fastify/cors';
-import helmet from '@fastify/helmet';
-import multipart from '@fastify/multipart';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import {
-  FastifyAdapter,
-  NestFastifyApplication,
-} from '@nestjs/platform-fastify';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { useApitally } from "apitally/nestjs";
+import * as bodyParser from 'body-parser';
+import compression from 'compression';
+import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
 import { WinstonModule } from 'nest-winston';
 import * as winston from 'winston';
 import { AppModule } from './app.module';
@@ -18,14 +13,9 @@ import { AllExceptionsFilter } from './common/all-exception.filter';
 import "./instrument";
 import { LoggerInterceptor } from './logger/logger.interceptor';
 import { SanitizePipe } from './pipes/sanitize.pipe';
-const fastifyCompression = compression;
-const fastifyCookie = cookie;
-const fastifyHelmet = helmet;
-const fastifyMultipart = multipart;
-const fastifyCors = cors;
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter(), {
+  const app = await NestFactory.create(AppModule, {
     logger: WinstonModule.createLogger({
       transports: [
         new winston.transports.Console({
@@ -41,22 +31,29 @@ async function bootstrap() {
     }),
   });
 
-  const fastifyInstance = app.getHttpAdapter().getInstance();
+  app.use(bodyParser.json({
+    limit: '50kb',
+    type: ['application/json', 'text/json']
+  }));
+  app.use(bodyParser.urlencoded({
+    limit: '50kb',
+    extended: true,
+    parameterLimit: 100
+  }));
 
-  await fastifyInstance.register(fastifyCookie as any, {
-    secret: process.env.COOKIE_SECRET,
-    hook: 'onRequest',
-  });
+  app.use(cookieParser());
 
-  await fastifyInstance.register(fastifyMultipart as any, {
-    limits: {
-      fileSize: 20 * 1024 * 1024, // 20MB
-      files: 1,
-    },
-    addToBody: true,
-  });
-
-  await fastifyInstance.register(fastifyHelmet as any, {
+  app.use(compression({
+    level: 6,
+    threshold: 1024,
+    filter: (req, res) => {
+      if (req.headers['x-no-compression']) {
+        return false;
+      }
+      return compression.filter(req, res);
+    }
+  }));
+  app.use(helmet({
     crossOriginEmbedderPolicy: false,
     contentSecurityPolicy: {
       directives: {
@@ -65,24 +62,12 @@ async function bootstrap() {
         scriptSrc: ["'self'"],
         imgSrc: ["'self'", "data:", "https:"],
       }
-    },
-    frameguard: false,
-  });
-
-  await fastifyInstance.register(fastifyCors as any, {
-    origin: [process.env.CORS_ORIGIN!, 'http://localhost:3000'],
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Authorization', 'Content-Type'],
-    credentials: true,
-  });
-
-  await fastifyInstance.register(fastifyCompression as any, { encodings: ['gzip', 'deflate'] });
+    }
+  }));
 
   await useApitally(app, {
-    clientId: "0b1a1ee3-3eb3-4618-b312-f0d66b9f28c5",
-    env: "prod", // or "dev"
-
-    // Optionally enable and configure request logging
+    clientId: process.env.API_TALLY_CLIENT_ID!,
+    env: process.env.API_TALLY_ENV!,
     requestLogging: {
       enabled: true,
       logRequestHeaders: true,
@@ -92,12 +77,12 @@ async function bootstrap() {
     },
   });
 
-  // app.enableCors({
-  //   origin: [process.env.CORS_ORIGIN!, 'http://localhost:3000'],
-  //   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  //   allowedHeaders: ['Authorization', 'Content-Type'],
-  //   credentials: true,
-  // });
+  app.enableCors({
+    origin: [process.env.PROD_ORIGIN!, process.env.DEV_ORIGIN!, process.env.LOCAL_ORIGIN!],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Authorization', 'Content-Type'],
+    credentials: true,
+  });
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -122,7 +107,10 @@ async function bootstrap() {
   }
   const requiredEnvVars = [
     'DATABASE_URL',
-    'CORS_ORIGIN',
+    'LOCAL_ORIGIN',
+    'DEV_ORIGIN',
+    'PROD_ORIGIN',
+    'API_TALLY_CLIENT_ID',
     'CLERK_PUBLISHABLE_KEY',
     'CLERK_SECRET_KEY',
     'ARCJET_API_KEY',

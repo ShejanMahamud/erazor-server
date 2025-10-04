@@ -5,7 +5,7 @@ import {
     Inject,
     Injectable,
 } from '@nestjs/common';
-import type { FastifyRequest } from 'fastify';
+import type { Request } from 'express';
 
 @Injectable()
 export class ClerkGuard implements CanActivate {
@@ -14,7 +14,7 @@ export class ClerkGuard implements CanActivate {
     ) { }
 
     async canActivate(ctx: ExecutionContext): Promise<boolean> {
-        const req = ctx.switchToHttp().getRequest<FastifyRequest>();
+        const req = ctx.switchToHttp().getRequest<Request>();
 
         // Create a proper Request object with full URL for Clerk
         const protocol = req.protocol;
