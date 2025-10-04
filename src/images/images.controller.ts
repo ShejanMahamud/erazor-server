@@ -1,9 +1,10 @@
-import { BadRequestException, Controller, DefaultValuePipe, Delete, Get, Param, ParseIntPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, DefaultValuePipe, Delete, Get, Param, ParseIntPipe, Post, Query, Req, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags } from '@nestjs/swagger';
 import { randomUUID } from 'crypto';
-import type { FastifyRequest } from 'fastify';
-import * as fs from 'fs/promises';
+import type { Request } from 'express';
 import { ImageStatus, Permissions, Roles } from 'generated/prisma';
+import { diskStorage } from 'multer';
 import { extname } from 'path/win32';
 import { FileSizeLimitInterceptor } from 'src/common/interceptors/subscription-file-validation';
 import { PermissionsRequired } from 'src/decorators/permissions.decorator';
@@ -16,7 +17,6 @@ import { RateLimitGuard } from 'src/guards/rate-limit.guard';
 import { RolesGuard } from 'src/guards/roles.guard';
 import { ActiveSubscriptionGuard } from 'src/guards/subscription-status.guard';
 import { ImagesService } from './images.service';
-import { ProcessedFile } from './interfaces/images.interface';
 
 @ApiTags('Images')
 @Controller('images')
@@ -25,83 +25,29 @@ export class ImagesController {
     private readonly imagesService: ImagesService,
   ) { }
 
-  @UseGuards(OptionalClerkGuard, RateLimitGuard(20, 60, 3), ActiveSubscriptionGuard, HasCreditGuard, FileSizeLimitInterceptor)
+  @UseGuards(OptionalClerkGuard, RateLimitGuard(20, 60, 3), ActiveSubscriptionGuard, HasCreditGuard)
   @Post('process')
-  async processImage(@Req() req: FastifyRequest) {
-    try {
-      // Check if request is multipart
-      if (!req.isMultipart()) {
-        throw new BadRequestException({
-          success: false,
-          message: 'Request must be multipart',
-          statusCode: 400,
-        });
+  @UseInterceptors(FileInterceptor('file', {
+    storage: diskStorage({
+      destination: '/tmp',
+      filename: (_, file, callback) => {
+        const uniqueName = randomUUID() + extname(file.originalname);
+        callback(null, uniqueName);
+      },
+    }),
+    limits: {
+      fileSize: 20 * 1024 * 1024,
+    },
+    fileFilter: (_, file, cb) => {
+      if (file.mimetype.match(/\/(jpg|jpeg|png|gif|bmp|tiff|webp)$/)) {
+        cb(null, true);
+      } else {
+        cb(new BadRequestException('Only image files are allowed!'), false);
       }
-
-      // Get the file part from the multipart request
-      const data = await req.file();
-
-      if (!data) {
-        throw new BadRequestException({
-          success: false,
-          message: 'No file uploaded',
-          statusCode: 400,
-        });
-      }
-
-      // Validate file type
-      if (!data.mimetype.match(/\/(jpg|jpeg|png|gif|bmp|tiff|webp)$/)) {
-        throw new BadRequestException({
-          success: false,
-          message: 'Invalid file type',
-          statusCode: 400,
-        });
-      }
-
-      // Read the file buffer
-      const buffer = await data.toBuffer();
-
-      // Check file size (20MB limit)
-      const maxSize = 20 * 1024 * 1024;
-      if (buffer.length > maxSize) {
-        throw new BadRequestException({
-          success: false,
-          message: 'File size exceeds the limit of 20MB',
-          statusCode: 400,
-        });
-      }
-
-      // Generate unique filename
-      const uniqueName = randomUUID() + extname(data.filename || '');
-      const filePath = `/tmp/${uniqueName}`;
-
-      // Save file to disk
-      await fs.writeFile(filePath, buffer);
-
-      // Create file object compatible with your service
-      const processedFile: ProcessedFile = {
-        filename: uniqueName,
-        originalname: data.filename || '',
-        mimetype: data.mimetype,
-        size: buffer.length,
-        path: filePath,
-        buffer: buffer
-      };
-
-      return this.imagesService.processImage(req.user.sub, processedFile);
-    } catch (error) {
-      // Re-throw HTTP exceptions as they are (guards, validation errors, etc.)
-      if (error.status) {
-        throw error;
-      }
-
-      // Only handle unexpected errors
-      throw new BadRequestException({
-        success: false,
-        message: 'Failed to process image',
-        statusCode: 400,
-      });
     }
+  }), FileSizeLimitInterceptor)
+  async processImage(@Req() req: Request, @UploadedFile() file: Express.Multer.File) {
+    return this.imagesService.processImage(req.user.sub, file);
   }
 
   @UseGuards(ClerkGuard)

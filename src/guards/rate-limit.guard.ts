@@ -8,7 +8,7 @@ import {
     Type,
 } from "@nestjs/common";
 import { createHash } from "crypto";
-import type { FastifyReply, FastifyRequest } from "fastify";
+import type { Request, Response } from "express";
 import Redis from "ioredis";
 import { REDIS_CLIENT } from "src/queue/queue.module";
 
@@ -22,8 +22,8 @@ export const RateLimitGuard = (
         constructor(@Inject(REDIS_CLIENT) private readonly redisClient: Redis) { }
 
         async canActivate(ctx: ExecutionContext): Promise<boolean> {
-            const req = ctx.switchToHttp().getRequest<FastifyRequest>();
-            const res = ctx.switchToHttp().getResponse<FastifyReply>();
+            const req = ctx.switchToHttp().getRequest<Request>();
+            const res = ctx.switchToHttp().getResponse<Response>();
 
             const userId = req?.user?.sub;
             const today = new Date().toISOString().slice(0, 10);
@@ -70,9 +70,9 @@ export const RateLimitGuard = (
             }
 
             if (effectiveUsage > freeDailyLimit) {
-                res.header("Retry-After", 86400);
-                res.header("X-RateLimit-Limit", freeDailyLimit);
-                res.header("X-RateLimit-Remaining", Math.max(0, freeDailyLimit - effectiveUsage));
+                res.header("Retry-After", "86400");
+                res.header("X-RateLimit-Limit", freeDailyLimit.toString());
+                res.header("X-RateLimit-Remaining", Math.max(0, freeDailyLimit - effectiveUsage).toString());
 
                 throw new HttpException(
                     {
@@ -96,9 +96,12 @@ export const RateLimitGuard = (
             if (current === 1) await this.redisClient.expire(rateKey, ttl);
 
             if (current > limit) {
-                res.header("Retry-After", ttl);
-                res.header("X-RateLimit-Limit", limit);
-                res.header("X-RateLimit-Remaining", Math.max(0, limit - current));
+                res.set({
+                    'Retry-After': ttl,
+                    'X-RateLimit-Limit': limit,
+                    'X-RateLimit-Remaining': Math.max(0, limit - current),
+                });
+
 
                 throw new HttpException(
                     {

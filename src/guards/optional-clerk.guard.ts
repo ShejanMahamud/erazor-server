@@ -8,10 +8,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Polar } from '@polar-sh/sdk';
-import { createHash } from 'crypto';
-import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { Request } from 'express';
 import Redis from 'ioredis';
-import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class OptionalClerkGuard implements CanActivate {
@@ -25,7 +23,7 @@ export class OptionalClerkGuard implements CanActivate {
     ) { }
 
     async canActivate(ctx: ExecutionContext): Promise<boolean> {
-        const req = ctx.switchToHttp().getRequest<FastifyRequest>();
+        const req = ctx.switchToHttp().getRequest<Request>();
         // Build full URL for Clerk
         const protocol = req.protocol;
         const host = req.headers.host;
@@ -37,7 +35,7 @@ export class OptionalClerkGuard implements CanActivate {
             method: req.method,
             headers: req.headers,
         };
-        const anonId = req.headers['anonymous-user'] as string
+        const anonId = req.cookies?.anon_id;
 
         try {
             // Check if Authorization header exists first
@@ -99,37 +97,5 @@ export class OptionalClerkGuard implements CanActivate {
         // Fallback: Anonymous user
         req['user'] = { sub: anonId };
         return true;
-    }
-
-    private generateAnonymousId(req: FastifyRequest, res: FastifyReply): string {
-        // Check cookie first (using Fastify's way to access cookies)
-        const anonIdCookie = req.cookies?.anon_id;
-        if (anonIdCookie) {
-            return anonIdCookie;
-        }
-
-        // Otherwise generate new one
-        let anonId: string;
-
-        try {
-            anonId = `anon-${uuidv4()}`;
-        } catch {
-            // Fallback if UUID fails
-            const ip = (req.headers['x-forwarded-for'] as string) || req.ip || 'unknown-ip';
-            const device = req.headers['user-agent'] || 'unknown-device';
-            const rawId = `${ip}-${device}`;
-            const hash = createHash('sha256').update(rawId).digest('hex').slice(0, 16);
-            anonId = `anon-${hash}`;
-        }
-
-        // Persist via cookie (using Fastify's cookie method)
-        res.setCookie('anon_id', anonId, {
-            httpOnly: true,
-            maxAge: 365 * 24 * 60 * 60 * 1000,
-            sameSite: 'lax',
-            secure: process.env.NODE_ENV === 'production',
-        });
-
-        return anonId;
     }
 }

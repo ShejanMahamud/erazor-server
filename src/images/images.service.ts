@@ -4,7 +4,7 @@ import { Queue } from 'bullmq';
 import { ImageStatus } from 'generated/prisma';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { IGlobalRes } from 'src/types';
-import { IImage, IImageService, ProcessedFile } from './interfaces/images.interface';
+import { IImage, IImageService } from './interfaces/images.interface';
 
 @Injectable()
 export class ImagesService implements IImageService {
@@ -12,7 +12,7 @@ export class ImagesService implements IImageService {
   constructor(@InjectQueue('image-processor') private readonly imageProcessorQueue: Queue, private readonly prisma: PrismaService) { }
 
 
-  async processImage(userId: string, file: ProcessedFile): Promise<IGlobalRes<{ anonId?: string | null, userId?: string | null }>> {
+  async processImage(userId: string, file: Express.Multer.File): Promise<IGlobalRes<{ anonId?: string | null, userId?: string | null }>> {
     this.logger.log(`Processing image for user ${userId}`);
     this.logger.log(`User ID starts with 'anon-': ${userId.startsWith('anon-')}`);
 
