@@ -34,9 +34,8 @@ export class UsersController {
     return this.usersService.findUserById(id);
   }
 
-
-  @RolesRequired(Roles.ADMIN)
-  @PermissionsRequired(Permissions.MANAGE_USERS)
+  @RolesRequired(Roles.USER)
+  @PermissionsRequired(Permissions.MANAGE_OWN_ACCOUNT)
   @UseGuards(ClerkGuard, RolesGuard, PermissionsGuard)
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {

@@ -137,6 +137,7 @@ enum Permissions {
   // Common Permissions (Optional)
   PROCESS_IMAGES
   VIEW_OWN_HISTORY
+  MANAGE_OWN_ACCOUNT
 }
 
 enum VerificationStatus {

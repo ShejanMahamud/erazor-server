@@ -21,5 +21,6 @@ export const ROLE_PERMISSIONS: Record<Roles, Permissions[]> = {
     [Roles.USER]: [
         Permissions.PROCESS_IMAGES,
         Permissions.VIEW_OWN_HISTORY,
+        Permissions.MANAGE_OWN_ACCOUNT,
     ],
 };

@@ -10,6 +10,7 @@ import { WinstonModule } from 'nest-winston';
 import * as winston from 'winston';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/all-exception.filter';
+import { ApiKeyGuard } from './guards/api-key.guard';
 import "./instrument";
 import { LoggerInterceptor } from './logger/logger.interceptor';
 import { SanitizePipe } from './pipes/sanitize.pipe';
@@ -78,7 +79,7 @@ async function bootstrap() {
   });
 
   app.enableCors({
-    origin: [process.env.PROD_ORIGIN!, process.env.DEV_ORIGIN!, process.env.LOCAL_ORIGIN!],
+    origin: [process.env.PROD_ORIGIN!, process.env.DEV_ORIGIN!],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Authorization', 'Content-Type'],
     credentials: true,
@@ -96,6 +97,9 @@ async function bootstrap() {
     }),
     new SanitizePipe()
   );
+
+  app.useGlobalGuards(new ApiKeyGuard());
+
   app.useGlobalFilters(new AllExceptionsFilter());
 
   app.setGlobalPrefix('v1/api');
