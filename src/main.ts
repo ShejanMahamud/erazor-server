@@ -1,5 +1,5 @@
 import { ValidationPipe } from '@nestjs/common';
-import { NestFactory } from '@nestjs/core';
+import { NestFactory, Reflector } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { useApitally } from "apitally/nestjs";
 import * as bodyParser from 'body-parser';
@@ -31,7 +31,7 @@ async function bootstrap() {
       ],
     }),
   });
-
+  const reflector = app.get(Reflector);
   app.use(bodyParser.json({
     limit: '50kb',
     type: ['application/json', 'text/json']
@@ -98,7 +98,7 @@ async function bootstrap() {
     new SanitizePipe()
   );
 
-  app.useGlobalGuards(new ApiKeyGuard());
+  app.useGlobalGuards(new ApiKeyGuard(reflector));
 
   app.useGlobalFilters(new AllExceptionsFilter());
 
