@@ -17,9 +17,7 @@ export class ImageEventsService {
             this.logger.log(`SSE: Sending image update to user ${userId}`);
             this.logger.debug(`SSE: Image data keys: ${Object.keys(imageData || {}).join(', ')}`);
             try {
-                stream.next({
-                    data: JSON.stringify(imageData)
-                });
+                stream.next(imageData);
                 this.logger.log(`SSE: Successfully sent update to user ${userId}`);
             } catch (error) {
                 this.logger.error(`SSE: Error sending update to user ${userId}:`, error);
