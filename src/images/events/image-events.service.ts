@@ -18,11 +18,7 @@ export class ImageEventsService {
             this.logger.debug(`SSE: Image data keys: ${Object.keys(imageData || {}).join(', ')}`);
             try {
                 stream.next({
-                    data: JSON.stringify({
-                        type: 'image_update',
-                        payload: imageData,
-                        timestamp: new Date().toISOString()
-                    })
+                    data: JSON.stringify(imageData)
                 });
                 this.logger.log(`SSE: Successfully sent update to user ${userId}`);
             } catch (error) {
@@ -52,20 +48,13 @@ export class ImageEventsService {
         return new Observable<MessageEvent>((observer) => {
             // Send initial connection message
             observer.next({
-                data: JSON.stringify({
-                    type: 'connection_established',
-                    message: 'Connected to image updates',
-                    timestamp: new Date().toISOString()
-                })
+                data: JSON.stringify("Connected to image updates")
             });
 
             // Set up keep-alive heartbeat every 30 seconds
             const heartbeat$ = interval(30000).pipe(
                 map(() => ({
-                    data: JSON.stringify({
-                        type: 'heartbeat',
-                        timestamp: new Date().toISOString()
-                    })
+                    data: JSON.stringify("SSE is still alive")
                 }))
             );
 
