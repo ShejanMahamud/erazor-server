@@ -15,7 +15,12 @@ export async function backupDatabase(): Promise<void> {
         backupFile = path.join("/tmp", `erazor_backup_${date}.sql.gz`);
 
         // Dump + compress
-        const dumpCmd = `PGPASSWORD=${process.env.POSTGRES_PASSWORD} pg_dump -h ${process.env.POSTGRES_HOST} -p ${process.env.POSTGRES_PORT} -U ${process.env.POSTGRES_USER} ${process.env.POSTGRES_DB} | gzip > ${backupFile}`;
+        const dumpCmd = `
+  docker exec postgres_erazor sh -c \
+  "PGPASSWORD=${process.env.POSTGRES_PASSWORD} pg_dump -U ${process.env.POSTGRES_USER} ${process.env.POSTGRES_DB}" \
+  | gzip > ${backupFile}
+`;
+
         await execAsync(dumpCmd);
 
         // Check if backup file exists and has content
