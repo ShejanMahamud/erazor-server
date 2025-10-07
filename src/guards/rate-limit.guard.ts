@@ -1,11 +1,10 @@
 import {
     CanActivate,
     ExecutionContext,
-    HttpException,
-    HttpStatus,
+    ForbiddenException,
     Inject,
     Injectable,
-    Type,
+    Type
 } from "@nestjs/common";
 import { createHash } from "crypto";
 import type { Request, Response } from "express";
@@ -74,18 +73,7 @@ export const RateLimitGuard = (
                 res.header("X-RateLimit-Limit", freeDailyLimit.toString());
                 res.header("X-RateLimit-Remaining", Math.max(0, freeDailyLimit - effectiveUsage).toString());
 
-                throw new HttpException(
-                    {
-                        success: false,
-                        message: "USAGE_LIMIT_EXCEEDED",
-                        meta: {
-                            statusCode: 429,
-                            timestamp: new Date().toISOString(),
-                            path: req.url
-                        },
-                    },
-                    HttpStatus.TOO_MANY_REQUESTS
-                );
+                throw new ForbiddenException('Free daily limit exceeded, please try again tomorrow or consider upgrading to a paid plan.');
             }
 
             const routeKey = `${req.method}:${req.url}`;
@@ -102,19 +90,8 @@ export const RateLimitGuard = (
                     'X-RateLimit-Remaining': Math.max(0, limit - current),
                 });
 
+                throw new ForbiddenException('Too many requests, please try again later.');
 
-                throw new HttpException(
-                    {
-                        success: false,
-                        message: "TOO_MANY_REQUESTS",
-                        meta: {
-                            statusCode: 429,
-                            timestamp: new Date().toISOString(),
-                            path: req.url,
-                        },
-                    },
-                    HttpStatus.TOO_MANY_REQUESTS
-                );
             }
 
             return true;
