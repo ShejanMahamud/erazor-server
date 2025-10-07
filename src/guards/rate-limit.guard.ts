@@ -1,7 +1,6 @@
 import {
     CanActivate,
     ExecutionContext,
-    ForbiddenException,
     Inject,
     Injectable,
     Type
@@ -69,20 +68,21 @@ export const RateLimitGuard = (
             }
 
             if (effectiveUsage > freeDailyLimit) {
-                //             'Retry-After': '86400',
-                // 'X-RateLimit-Limit': freeDailyLimit.toString(),
-                // 'X-RateLimit-Remaining': Math.max(0, freeDailyLimit - effectiveUsage).toString(),
-                throw new ForbiddenException({
+                res.set({
+                    'Retry-After': '86400',
+                    'X-RateLimit-Limit': freeDailyLimit.toString(),
+                    'X-RateLimit-Remaining': Math.max(0, freeDailyLimit - effectiveUsage).toString(),
+                });
+                res.status(403).json({
                     success: false,
                     message: 'Free daily limit exceeded, please try again tomorrow or consider upgrading to a paid plan.',
                     meta: {
                         statusCode: 403,
                         timestamp: new Date().toISOString(),
                         path: req.url,
-                        dailyLimit: freeDailyLimit,
-                        currentUsage: effectiveUsage
                     }
                 });
+                return false;
             }
 
             const routeKey = `${req.method}:${req.url}`;
@@ -93,25 +93,21 @@ export const RateLimitGuard = (
             if (current === 1) await this.redisClient.expire(rateKey, ttl);
 
             if (current > limit) {
-                // res.set({
-                //     'Retry-After': ttl,
-                //     'X-RateLimit-Limit': limit,
-                //     'X-RateLimit-Remaining': Math.max(0, limit - current),
-                // });
-
-                throw new ForbiddenException({
+                res.set({
+                    'Retry-After': ttl,
+                    'X-RateLimit-Limit': limit,
+                    'X-RateLimit-Remaining': Math.max(0, limit - current),
+                });
+                res.status(429).json({
                     success: false,
                     message: 'Too many requests, please try again later.',
                     meta: {
-                        statusCode: 403,
+                        statusCode: 429,
                         timestamp: new Date().toISOString(),
                         path: req.url,
-                        rateLimit: limit,
-                        currentRequests: current,
-                        retryAfter: ttl
                     }
                 });
-
+                return false;
             }
 
             return true;
