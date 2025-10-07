@@ -11,8 +11,8 @@ import { Request, Response } from 'express';
 export class AllExceptionsFilter implements ExceptionFilter {
     catch(exception: any, host: ArgumentsHost) {
         const ctx = host.switchToHttp();
-        const response: Response = ctx.getResponse();
-        const request: Request = ctx.getRequest();
+        const response = ctx.getResponse<Response>();
+        const request = ctx.getRequest<Request>();
 
         const status =
             exception instanceof HttpException
@@ -20,24 +20,35 @@ export class AllExceptionsFilter implements ExceptionFilter {
                 : HttpStatus.INTERNAL_SERVER_ERROR;
 
         const errorResponse =
-            exception instanceof HttpException ? exception.getResponse() : null;
+            exception instanceof HttpException
+                ? exception.getResponse()
+                : { message: exception.message };
 
-        // Initialize message and errors
+        // ✅ If this is already a structured JSON (like from RateLimitGuard)
+        if (
+            errorResponse &&
+            typeof errorResponse === 'object' &&
+            'success' in errorResponse
+        ) {
+            return response.status(status).json(errorResponse);
+        }
+
+        // --- otherwise, build the normal fallback ---
         let message: string;
-        let errors: { field: string | null; message: string }[] | undefined;
+        let errors:
+            | { field: string | null; message: string }[]
+            | undefined;
 
         if (typeof errorResponse === 'string') {
             message = errorResponse;
-        } else if (errorResponse !== null && typeof errorResponse === 'object') {
-            // errorResponse is an object
+        } else if (
+            errorResponse !== null &&
+            typeof errorResponse === 'object'
+        ) {
             if ('message' in errorResponse) {
-                const msg = (errorResponse as Error).message;
-
+                const msg = (errorResponse as any).message;
                 if (Array.isArray(msg)) {
-                    errors = msg.map((m) => ({
-                        field: null,
-                        message: m,
-                    }));
+                    errors = msg.map((m: string) => ({ field: null, message: m }));
                     message = 'Validation failed';
                 } else if (typeof msg === 'string') {
                     message = msg;
