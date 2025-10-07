@@ -69,10 +69,9 @@ export const RateLimitGuard = (
             }
 
             if (effectiveUsage > freeDailyLimit) {
-                res.header("Retry-After", "86400");
-                res.header("X-RateLimit-Limit", freeDailyLimit.toString());
-                res.header("X-RateLimit-Remaining", Math.max(0, freeDailyLimit - effectiveUsage).toString());
-
+                //             'Retry-After': '86400',
+                // 'X-RateLimit-Limit': freeDailyLimit.toString(),
+                // 'X-RateLimit-Remaining': Math.max(0, freeDailyLimit - effectiveUsage).toString(),
                 throw new ForbiddenException('Free daily limit exceeded, please try again tomorrow or consider upgrading to a paid plan.');
             }
 
@@ -84,11 +83,11 @@ export const RateLimitGuard = (
             if (current === 1) await this.redisClient.expire(rateKey, ttl);
 
             if (current > limit) {
-                res.set({
-                    'Retry-After': ttl,
-                    'X-RateLimit-Limit': limit,
-                    'X-RateLimit-Remaining': Math.max(0, limit - current),
-                });
+                // res.set({
+                //     'Retry-After': ttl,
+                //     'X-RateLimit-Limit': limit,
+                //     'X-RateLimit-Remaining': Math.max(0, limit - current),
+                // });
 
                 throw new ForbiddenException('Too many requests, please try again later.');
 
