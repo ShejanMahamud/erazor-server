@@ -1,6 +1,9 @@
 import {
     CanActivate,
     ExecutionContext,
+    ForbiddenException,
+    HttpException,
+    HttpStatus,
     Inject,
     Injectable,
     Type
@@ -73,16 +76,8 @@ export const RateLimitGuard = (
                     'X-RateLimit-Limit': freeDailyLimit.toString(),
                     'X-RateLimit-Remaining': Math.max(0, freeDailyLimit - effectiveUsage).toString(),
                 });
-                res.status(403).json({
-                    success: false,
-                    message: 'Free daily limit exceeded, please try again tomorrow or consider upgrading to a paid plan.',
-                    meta: {
-                        statusCode: 403,
-                        timestamp: new Date().toISOString(),
-                        path: req.url,
-                    }
-                });
-                return false;
+                
+                throw new ForbiddenException('Free daily limit exceeded, please try again tomorrow or consider upgrading to a paid plan.');
             }
 
             const routeKey = `${req.method}:${req.url}`;
@@ -94,20 +89,12 @@ export const RateLimitGuard = (
 
             if (current > limit) {
                 res.set({
-                    'Retry-After': ttl,
-                    'X-RateLimit-Limit': limit,
-                    'X-RateLimit-Remaining': Math.max(0, limit - current),
+                    'Retry-After': ttl.toString(),
+                    'X-RateLimit-Limit': limit.toString(),
+                    'X-RateLimit-Remaining': Math.max(0, limit - current).toString(),
                 });
-                res.status(429).json({
-                    success: false,
-                    message: 'Too many requests, please try again later.',
-                    meta: {
-                        statusCode: 429,
-                        timestamp: new Date().toISOString(),
-                        path: req.url,
-                    }
-                });
-                return false;
+                
+                throw new HttpException('Too many requests, please try again later.', HttpStatus.TOO_MANY_REQUESTS);
             }
 
             return true;
