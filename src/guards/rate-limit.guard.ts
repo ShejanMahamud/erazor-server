@@ -72,7 +72,17 @@ export const RateLimitGuard = (
                 //             'Retry-After': '86400',
                 // 'X-RateLimit-Limit': freeDailyLimit.toString(),
                 // 'X-RateLimit-Remaining': Math.max(0, freeDailyLimit - effectiveUsage).toString(),
-                throw new ForbiddenException('Free daily limit exceeded, please try again tomorrow or consider upgrading to a paid plan.');
+                throw new ForbiddenException({
+                    success: false,
+                    message: 'Free daily limit exceeded, please try again tomorrow or consider upgrading to a paid plan.',
+                    meta: {
+                        statusCode: 403,
+                        timestamp: new Date().toISOString(),
+                        path: req.url,
+                        dailyLimit: freeDailyLimit,
+                        currentUsage: effectiveUsage
+                    }
+                });
             }
 
             const routeKey = `${req.method}:${req.url}`;
@@ -89,7 +99,18 @@ export const RateLimitGuard = (
                 //     'X-RateLimit-Remaining': Math.max(0, limit - current),
                 // });
 
-                throw new ForbiddenException('Too many requests, please try again later.');
+                throw new ForbiddenException({
+                    success: false,
+                    message: 'Too many requests, please try again later.',
+                    meta: {
+                        statusCode: 403,
+                        timestamp: new Date().toISOString(),
+                        path: req.url,
+                        rateLimit: limit,
+                        currentRequests: current,
+                        retryAfter: ttl
+                    }
+                });
 
             }
 
