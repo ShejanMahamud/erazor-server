@@ -43,6 +43,10 @@ jobs:
           overwrite: true
           debug: true
           strip_components: 1
+          exclude: |
+            .git
+            node_modules
+            .github
 
       - name: Deploy on server
         uses: appleboy/ssh-action@master
